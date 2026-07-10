@@ -1,4 +1,4 @@
-const STORAGE_CONFIG_KEY = "rv_configuracion";
+﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
 const ADMIN_USUARIO = "admin";
@@ -49,7 +49,7 @@ function crearConfiguracionInicial() {
                 id: 1,
                 nombre: "ASISTENCIA",
                 clave: "asistencia",
-                emoji: "👮",
+                emoji: "ðŸ‘®",
                 color: "#2563eb",
                 orden: 1,
                 activo: true,
@@ -64,13 +64,13 @@ function crearConfiguracionInicial() {
                 id: 2,
                 nombre: "NOVEDAD",
                 clave: "novedad",
-                emoji: "📝",
+                emoji: "ðŸ“",
                 color: "#16a34a",
                 orden: 2,
                 activo: true,
                 campos: [
                     crearCampo(4, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
-                    crearCampo(5, "Ubicación", "ubicacion", "catalogo", "", "lugares", true, 2),
+                    crearCampo(5, "UbicaciÃ³n", "ubicacion", "catalogo", "", "lugares", true, 2),
                     crearCampo(6, "Descripcion de la novedad", "descripcion", "textarea", "", "", true, 3)
                 ],
                 plantilla: `*{{tipo_reporte}}*
@@ -78,14 +78,14 @@ function crearConfiguracionInicial() {
 *Hora:* {{hora}}
 
 *Guardia:* {{guardia}}
-*Ubicación:* {{ubicacion}}
+*UbicaciÃ³n:* {{ubicacion}}
 *Novedad:* {{descripcion}}`
             },
             {
                 id: 3,
                 nombre: "RONDIN",
                 clave: "rondin",
-                emoji: "🚶",
+                emoji: "ðŸš¶",
                 color: "#f59e0b",
                 orden: 3,
                 activo: true,
@@ -100,7 +100,7 @@ function crearConfiguracionInicial() {
                 id: 4,
                 nombre: "INCIDENCIA",
                 clave: "incidencia",
-                emoji: "🚨",
+                emoji: "ðŸš¨",
                 color: "#dc2626",
                 orden: 4,
                 activo: true,
@@ -134,8 +134,8 @@ function plantillaBase(nombre, variables) {
         guardia: "Guardia",
         turno: "Turno",
         observaciones: "Observaciones",
-        ubicacion: "Ubicación",
-        descripcion: "Descripción",
+        ubicacion: "UbicaciÃ³n",
+        descripcion: "DescripciÃ³n",
         zona: "Zona",
         resultado: "Resultado"
     };
@@ -220,6 +220,11 @@ function registrarNavegacion(vista, params = {}, opciones = {}) {
 }
 
 function volverLogico() {
+    if (vistaActual === "reporte") {
+        volverAlMenuReportes({ desdeHistorial: true });
+        return;
+    }
+
     const anterior = obtenerVistaAnterior(vistaActual, paramsVistaActual);
 
     if (!anterior) {
@@ -354,7 +359,7 @@ function migrarConfiguracion(configuracion) {
             }
 
             if (campo.nombre_campo === "lugar") {
-                campo.etiqueta = "Ubicación";
+                campo.etiqueta = "UbicaciÃ³n";
                 campo.nombre_campo = "ubicacion";
                 campo.tipo_campo = "catalogo";
                 campo.catalogo_origen = "lugares";
@@ -372,7 +377,7 @@ function migrarConfiguracion(configuracion) {
             );
             tipo.plantilla = tipo.plantilla
                 .replace(/\{\{lugar\}\}/g, "{{ubicacion}}")
-                .replace(/\*Lugar:\*/g, "*Ubicación:*");
+                .replace(/\*Lugar:\*/g, "*UbicaciÃ³n:*");
             tipo.plantilla = normalizarEtiquetasPlantilla(tipo.plantilla);
         }
     });
@@ -495,7 +500,7 @@ function mostrarMenuReportes(opciones = {}) {
         button.className = "menu-card";
         button.style.borderLeftColor = tipo.color;
         button.innerHTML = `
-            <div class="emoji">${tipo.emoji || "📋"}</div>
+            <div class="emoji">${tipo.emoji || "ðŸ“‹"}</div>
             <span>${tipo.nombre}</span>
         `;
         button.onclick = () => mostrarReporte(tipo.clave);
@@ -507,6 +512,23 @@ function mostrarMenuReportes(opciones = {}) {
     btnVolver.textContent = "Volver";
     btnVolver.onclick = volverLogico;
     appContent.appendChild(btnVolver);
+}
+
+function volverAlMenuReportes(opciones = {}) {
+    limpiarReporteActual();
+    renderizarVista("menuReportes", {}, opciones);
+    history.replaceState({ vista: "menuReportes", params: {} }, "");
+}
+
+function limpiarReporteActual() {
+    const clave = paramsVistaActual?.clave || formularioActual?.tipo?.clave || vistaPreviaActual?.tipo_clave;
+
+    if (clave) {
+        delete valoresReporteActual[clave];
+    }
+
+    vistaPreviaActual = null;
+    formularioActual = null;
 }
 
 function mostrarReporte(clave, opciones = {}) {
@@ -640,7 +662,7 @@ function obtenerElementosCatalogo(catalogoOrigen) {
 function nombreCatalogo(catalogoOrigen) {
     const nombres = {
         guardias: "guardia",
-        lugares: "ubicación",
+        lugares: "ubicaciÃ³n",
         turnos: "turno"
     };
 
@@ -711,6 +733,10 @@ function renderizarVistaPrevia(clave, mensajeTexto) {
 
         <button class="btn-main-small" id="btnWhatsApp" onclick="abrirWhatsApp()">
             Abrir WhatsApp
+        </button>
+
+        <button class="btn-secondary-small" type="button" onclick="volverAlMenuReportes()">
+            Menu
         </button>
 
         <button class="btn-volver" onclick="editarReporteDesdeVistaPrevia('${clave}')">
@@ -812,7 +838,7 @@ function mostrarLogin(opciones = {}) {
             <input type="text" name="usuario" placeholder="Usuario" autocomplete="username" required>
 
             <label>Contrasena</label>
-            <input type="password" name="password" placeholder="Contraseña" autocomplete="current-password" required>
+            <input type="password" name="password" placeholder="ContraseÃ±a" autocomplete="current-password" required>
 
             <button type="submit" class="btn-main-small">Ingresar</button>
         </form>
@@ -869,7 +895,7 @@ function mostrarPanelAdmin(opciones = {}) {
 
         <button class="admin-card" type="button" onclick="mostrarAdminLugares()">
             <span>Ubicaciones</span>
-            <small>Catalogo local para campos de ubicación</small>
+            <small>Catalogo local para campos de ubicaciÃ³n</small>
         </button>
 
         <button class="admin-card" type="button" onclick="mostrarAdminTurnos()">
@@ -1246,7 +1272,7 @@ function agregarTipoReporteAdmin() {
         id: siguienteIdTipo(configuracion),
         nombre,
         clave: normalizarClave(nombre),
-        emoji: "📋",
+        emoji: "ðŸ“‹",
         color: "#198754",
         orden: configuracion.tiposReportes.length + 1,
         activo: true,
@@ -1346,17 +1372,17 @@ function mostrarAdminLugares(opciones = {}) {
     appContent.innerHTML = `
         <form id="formLugar" class="form-card">
             <div class="form-group">
-                <label>Nombre de la ubicación</label>
+                <label>Nombre de la ubicaciÃ³n</label>
                 <input type="text" name="nombre" required>
             </div>
-            <button class="btn-main-small" type="submit">Agregar ubicación</button>
+            <button class="btn-main-small" type="submit">Agregar ubicaciÃ³n</button>
         </form>
         <div class="admin-list">
             ${configuracion.lugares.filter(lugar => lugar.activo).map(lugar => `
                 <div class="admin-field-card">
                     <div>
                         <strong>${lugar.nombre}</strong>
-                        <span>Disponible en campos tipo ubicación</span>
+                        <span>Disponible en campos tipo ubicaciÃ³n</span>
                     </div>
                     <div class="admin-field-actions">
                         <button type="button" onclick="desactivarLugar(${lugar.id})">Quitar</button>
@@ -1548,3 +1574,4 @@ window.addEventListener("popstate", event => {
 });
 
 inicializarAplicacion();
+
