@@ -382,6 +382,25 @@ body {
     resize: none;
 }
 
+.time-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr .95fr;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #f8fafc;
+}
+
+.time-selector select {
+    padding: 12px 8px;
+    border-color: #cbd5e1;
+    border-radius: 12px;
+    color: #0f5132;
+    font-weight: 900;
+    text-align: center;
+}
+
 .preview-card h3 {
     margin-top: 0;
 }

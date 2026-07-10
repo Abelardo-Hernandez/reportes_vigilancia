@@ -631,8 +631,12 @@ function crearCampoHTML(campo) {
         `;
     }
 
-    if (campo.tipo_campo === "fecha" || campo.tipo_campo === "hora" || campo.tipo_campo === "numero") {
-        const inputType = campo.tipo_campo === "numero" ? "number" : campo.tipo_campo === "fecha" ? "date" : "time";
+    if (campo.tipo_campo === "hora") {
+        return crearCampoHoraHTML(campo, required, obligatorioTexto);
+    }
+
+    if (campo.tipo_campo === "fecha" || campo.tipo_campo === "numero") {
+        const inputType = campo.tipo_campo === "numero" ? "number" : "date";
         return `
             <div class="form-group">
                 <label>${campo.etiqueta}</label>
@@ -660,6 +664,77 @@ function crearCampoHTML(campo) {
     `;
 }
 
+function crearCampoHoraHTML(campo, required, obligatorioTexto) {
+    const opcionesHoras = crearOpcionesNumericas(0, 12, "Hora");
+    const opcionesMinutos = crearOpcionesNumericas(0, 59, "Minutos", { rellenar: true });
+
+    return `
+        <div class="form-group">
+            <label>${campo.etiqueta}</label>
+            <input type="hidden" name="${campo.nombre_campo}" data-label="${campo.etiqueta}" data-campo-id="${campo.id}">
+            <div class="time-selector">
+                <select data-hora-campo="${campo.nombre_campo}" data-hora-parte="hora" ${required} onchange="actualizarCampoHora('${campo.nombre_campo}')">
+                    ${opcionesHoras}
+                </select>
+                <select data-hora-campo="${campo.nombre_campo}" data-hora-parte="minuto" ${required} onchange="actualizarCampoHora('${campo.nombre_campo}')">
+                    ${opcionesMinutos}
+                </select>
+                <select data-hora-campo="${campo.nombre_campo}" data-hora-parte="periodo" ${required} onchange="actualizarCampoHora('${campo.nombre_campo}')">
+                    <option value="">Periodo</option>
+                    <option value="a.m.">a.m.</option>
+                    <option value="p.m.">p.m.</option>
+                </select>
+            </div>
+            ${obligatorioTexto}
+        </div>
+    `;
+}
+
+function crearOpcionesNumericas(inicio, fin, placeholder, opcionesConfig = {}) {
+    let opciones = `<option value="">${placeholder}</option>`;
+
+    for (let numero = inicio; numero <= fin; numero += 1) {
+        const valor = opcionesConfig.rellenar ? String(numero).padStart(2, "0") : String(numero);
+        opciones += `<option value="${valor}">${valor}</option>`;
+    }
+
+    return opciones;
+}
+
+function actualizarCampoHora(nombreCampo) {
+    const form = document.getElementById("formReporte");
+
+    if (!form) {
+        return;
+    }
+
+    const campo = obtenerCampoFormulario(form, nombreCampo);
+    const hora = obtenerParteHora(form, nombreCampo, "hora");
+    const minuto = obtenerParteHora(form, nombreCampo, "minuto");
+    const periodo = obtenerParteHora(form, nombreCampo, "periodo");
+
+    if (campo) {
+        campo.value = hora && minuto && periodo ? `${hora}:${minuto} ${periodo}` : "";
+    }
+}
+
+function actualizarCamposHoraFormulario(form) {
+    formularioActual.campos
+        .filter(campo => campo.tipo_campo === "hora")
+        .forEach(campo => actualizarCampoHora(campo.nombre_campo));
+}
+
+function obtenerCampoFormulario(form, nombreCampo) {
+    return Array.from(form.elements).find(elemento => elemento.name === nombreCampo);
+}
+
+function obtenerParteHora(form, nombreCampo, parte) {
+    const selector = Array.from(form.querySelectorAll("[data-hora-campo]"))
+        .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === parte);
+
+    return selector?.value || "";
+}
+
 function obtenerElementosCatalogo(catalogoOrigen) {
     const configuracion = obtenerConfiguracion();
     const catalogo = configuracion[catalogoOrigen] || [];
@@ -678,6 +753,7 @@ function nombreCatalogo(catalogoOrigen) {
 
 function generarVistaPrevia(clave) {
     const form = document.getElementById("formReporte");
+    actualizarCamposHoraFormulario(form);
 
     if (!form.checkValidity()) {
         form.reportValidity();
@@ -689,7 +765,7 @@ function generarVistaPrevia(clave) {
     const valores = {};
 
     formularioActual.campos.forEach(campoConfig => {
-        const campo = form.querySelector(`[name="${campoConfig.nombre_campo}"]`);
+        const campo = obtenerCampoFormulario(form, campoConfig.nombre_campo);
         let valorFinal = campoConfig.tipo_campo === "checkbox"
             ? (campo.checked ? "Si" : "No")
             : formData.get(campoConfig.nombre_campo);
@@ -765,7 +841,7 @@ function restaurarValoresReporte(clave) {
     }
 
     formularioActual.campos.forEach(campoConfig => {
-        const campo = form.querySelector(`[name="${campoConfig.nombre_campo}"]`);
+        const campo = obtenerCampoFormulario(form, campoConfig.nombre_campo);
 
         if (!campo) {
             return;
@@ -778,8 +854,70 @@ function restaurarValoresReporte(clave) {
             return;
         }
 
+        if (campoConfig.tipo_campo === "hora") {
+            restaurarCampoHora(form, campoConfig.nombre_campo, valor);
+            return;
+        }
+
         campo.value = valor;
     });
+}
+
+function restaurarCampoHora(form, nombreCampo, valor) {
+    const horaNormalizada = normalizarHoraParaSelector(valor);
+    const campo = obtenerCampoFormulario(form, nombreCampo);
+    const selectorHora = Array.from(form.querySelectorAll("[data-hora-campo]"))
+        .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === "hora");
+    const selectorMinuto = Array.from(form.querySelectorAll("[data-hora-campo]"))
+        .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === "minuto");
+    const selectorPeriodo = Array.from(form.querySelectorAll("[data-hora-campo]"))
+        .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === "periodo");
+
+    if (campo) {
+        campo.value = horaNormalizada.valor;
+    }
+
+    if (selectorHora) {
+        selectorHora.value = horaNormalizada.hora;
+    }
+
+    if (selectorMinuto) {
+        selectorMinuto.value = horaNormalizada.minuto;
+    }
+
+    if (selectorPeriodo) {
+        selectorPeriodo.value = horaNormalizada.periodo;
+    }
+}
+
+function normalizarHoraParaSelector(valor) {
+    const vacia = { hora: "", minuto: "", periodo: "", valor: "" };
+
+    if (!valor) {
+        return vacia;
+    }
+
+    const horaConPeriodo = valor.match(/^(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.)$/i);
+
+    if (horaConPeriodo) {
+        const hora = String(Number(horaConPeriodo[1]));
+        const minuto = horaConPeriodo[2];
+        const periodo = horaConPeriodo[3].toLowerCase();
+        return { hora, minuto, periodo, valor: `${hora}:${minuto} ${periodo}` };
+    }
+
+    const horaVeinticuatro = valor.match(/^(\d{1,2}):(\d{2})$/);
+
+    if (!horaVeinticuatro) {
+        return vacia;
+    }
+
+    const horaNumero = Number(horaVeinticuatro[1]);
+    const minuto = horaVeinticuatro[2];
+    const periodo = horaNumero >= 12 ? "p.m." : "a.m.";
+    const hora = horaNumero > 12 ? String(horaNumero - 12) : String(horaNumero);
+
+    return { hora, minuto, periodo, valor: `${hora}:${minuto} ${periodo}` };
 }
 
 function construirMensajeAutomatico(clave, respuestas) {
