@@ -265,6 +265,24 @@ button {
     opacity: .75;
 }
 
+.btn-menu-reporte {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    background: #2563eb;
+    color: white;
+    border-radius: 16px;
+    padding: 17px;
+    font-size: 18px;
+    font-weight: 900;
+    text-align: center;
+    box-shadow: 0 10px 22px rgba(37,99,235,.28);
+}
+
+.btn-menu-reporte:active {
+    transform: scale(.98);
+}
+
 .error-box {
     background: white;
     color: #dc2626;
