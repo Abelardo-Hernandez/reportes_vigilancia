@@ -217,6 +217,11 @@ button {
     width: 100%;
 }
 
+.btn-volver-formulario {
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
 .loading-box,
 .info-card,
 .login-card,

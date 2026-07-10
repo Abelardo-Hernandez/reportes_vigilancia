@@ -557,7 +557,10 @@ function mostrarReporte(clave, opciones = {}) {
     cambiarHeader(`${tipo.emoji || ""} ${tipo.nombre}`, "Complete la información del reporte");
     appContent.className = "app-content formulario-content";
 
-    let html = `<form id="formReporte" class="form-card">`;
+    let html = `
+        <button type="button" class="btn-volver btn-volver-formulario" onclick="volverLogico()">Volver</button>
+        <form id="formReporte" class="form-card">
+    `;
 
     formularioActual.campos.forEach(campo => {
         html += crearCampoHTML(campo);
