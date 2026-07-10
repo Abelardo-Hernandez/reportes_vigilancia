@@ -22,16 +22,16 @@ const TIPOS_CAMPOS = [
     { id: 1, clave: "texto", nombre: "Texto corto" },
     { id: 2, clave: "textarea", nombre: "Texto largo" },
     { id: 3, clave: "select", nombre: "Lista desplegable" },
-    { id: 4, clave: "numero", nombre: "Numero" },
+    { id: 4, clave: "numero", nombre: "Número" },
     { id: 5, clave: "fecha", nombre: "Fecha" },
     { id: 6, clave: "hora", nombre: "Hora" },
     { id: 7, clave: "checkbox", nombre: "Casilla" },
-    { id: 8, clave: "catalogo", nombre: "Catalogo" }
+    { id: 8, clave: "catalogo", nombre: "Catálogo" }
 ];
 
 function crearConfiguracionInicial() {
     return {
-        version: 5,
+        version: 6,
         guardias: [],
         lugares: [
             { id: 1, nombre: "Caseta Principal", activo: true },
@@ -71,7 +71,7 @@ function crearConfiguracionInicial() {
                 campos: [
                     crearCampo(4, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
                     crearCampo(5, "Ubicación", "ubicacion", "catalogo", "", "lugares", true, 2),
-                    crearCampo(6, "Descripcion de la novedad", "descripcion", "textarea", "", "", true, 3)
+                    crearCampo(6, "Descripción de la novedad", "descripcion", "textarea", "", "", true, 3)
                 ],
                 plantilla: `*{{tipo_reporte}}*
 *Fecha:* {{fecha}}
@@ -83,7 +83,7 @@ function crearConfiguracionInicial() {
             },
             {
                 id: 3,
-                nombre: "RONDIN",
+                nombre: "RONDÍN",
                 clave: "rondin",
                 emoji: "🚶",
                 color: "#f59e0b",
@@ -94,7 +94,7 @@ function crearConfiguracionInicial() {
                     crearCampo(8, "Zona", "zona", "texto", "", "", true, 2),
                     crearCampo(9, "Resultado", "resultado", "textarea", "", "", true, 3)
                 ],
-                plantilla: plantillaBase("RONDIN", ["guardia", "zona", "resultado"])
+                plantilla: plantillaBase("RONDÍN", ["guardia", "zona", "resultado"])
             },
             {
                 id: 4,
@@ -106,8 +106,8 @@ function crearConfiguracionInicial() {
                 activo: true,
                 campos: [
                     crearCampo(10, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
-                    crearCampo(11, "Ubicacion", "ubicacion", "texto", "", "", true, 2),
-                    crearCampo(12, "Descripcion", "descripcion", "textarea", "", "", true, 3)
+                    crearCampo(11, "Ubicación", "ubicacion", "texto", "", "", true, 2),
+                    crearCampo(12, "Descripción", "descripcion", "textarea", "", "", true, 3)
                 ],
                 plantilla: plantillaBase("INCIDENCIA", ["guardia", "ubicacion", "descripcion"])
             }
@@ -168,13 +168,13 @@ async function cargarConfiguracionInicial() {
         const respuesta = await fetch(CONFIG_INICIAL_URL);
 
         if (!respuesta.ok) {
-            throw new Error("No fue posible cargar la configuracion inicial.");
+            throw new Error("No fue posible cargar la configuración inicial.");
         }
 
         const configuracion = await respuesta.json();
 
         if (!Array.isArray(configuracion.tiposReportes)) {
-            throw new Error("La configuracion inicial no tiene formularios.");
+            throw new Error("La configuración inicial no tiene formularios.");
         }
 
         return migrarConfiguracion(configuracion);
@@ -342,6 +342,9 @@ function migrarConfiguracion(configuracion) {
 
     configuracion.tiposReportes.forEach(tipo => {
         tipo.activo = tipo.activo !== false;
+        if (tipo.nombre === "RONDIN") {
+            tipo.nombre = "RONDÍN";
+        }
         tipo.campos = tipo.campos || [];
 
         tipo.campos.forEach(campo => {
@@ -378,11 +381,12 @@ function migrarConfiguracion(configuracion) {
             tipo.plantilla = tipo.plantilla
                 .replace(/\{\{lugar\}\}/g, "{{ubicacion}}")
                 .replace(/\*Lugar:\*/g, "*Ubicación:*");
+            tipo.plantilla = tipo.plantilla.replace(/\bRONDIN\b/g, "RONDÍN");
             tipo.plantilla = normalizarEtiquetasPlantilla(tipo.plantilla);
         }
     });
 
-    configuracion.version = 5;
+    configuracion.version = 6;
     return configuracion;
 }
 
@@ -550,7 +554,7 @@ function mostrarReporte(clave, opciones = {}) {
         plantilla: tipo.plantilla || ""
     };
 
-    cambiarHeader(`${tipo.emoji || ""} ${tipo.nombre}`, "Complete la informacion del reporte");
+    cambiarHeader(`${tipo.emoji || ""} ${tipo.nombre}`, "Complete la información del reporte");
     appContent.className = "app-content formulario-content";
 
     let html = `<form id="formReporte" class="form-card">`;
@@ -606,7 +610,7 @@ function crearCampoHTML(campo) {
             <div class="form-group">
                 <label>${campo.etiqueta}</label>
                 <select ${atributos}>
-                    <option value="">Seleccione una opcion</option>
+                    <option value="">Seleccione una opción</option>
                     ${opciones}
                 </select>
                 ${obligatorioTexto}
@@ -666,7 +670,7 @@ function nombreCatalogo(catalogoOrigen) {
         turnos: "turno"
     };
 
-    return nombres[catalogoOrigen] || "opcion";
+    return nombres[catalogoOrigen] || "opción";
 }
 
 function generarVistaPrevia(clave) {
@@ -830,7 +834,7 @@ function guardarHistorialReporte(reporte) {
 
 function mostrarLogin(opciones = {}) {
     registrarNavegacion("login", {}, opciones);
-    cambiarHeader("ADMINISTRADOR", "Inicio de sesion local");
+    cambiarHeader("ADMINISTRADOR", "Inicio de sesión local");
     appContent.className = "app-content";
     appContent.innerHTML = `
         <form id="formLoginAdmin" class="login-card">
@@ -856,7 +860,7 @@ function iniciarSesionAdmin(event) {
     const password = formData.get("password");
 
     if (usuario !== ADMIN_USUARIO || password !== ADMIN_PASSWORD) {
-        mostrarMensajeLogin("Usuario o contrasena incorrectos.");
+        mostrarMensajeLogin("Usuario o contraseña incorrectos.");
         return;
     }
 
@@ -880,7 +884,7 @@ function mostrarMensajeLogin(mensaje) {
 
 function mostrarPanelAdmin(opciones = {}) {
     registrarNavegacion("adminPanel", {}, opciones);
-    cambiarHeader("ADMINISTRADOR", "Configuracion local offline");
+    cambiarHeader("ADMINISTRADOR", "Configuración local offline");
     appContent.className = "app-content admin-panel";
     appContent.innerHTML = `
         <button class="admin-card" type="button" onclick="mostrarAdminFormularios()">
@@ -890,17 +894,17 @@ function mostrarPanelAdmin(opciones = {}) {
 
         <button class="admin-card" type="button" onclick="mostrarAdminGuardias()">
             <span>Guardias</span>
-            <small>Catalogo local para los formularios</small>
+            <small>Catálogo local para los formularios</small>
         </button>
 
         <button class="admin-card" type="button" onclick="mostrarAdminLugares()">
             <span>Ubicaciones</span>
-            <small>Catalogo local para campos de ubicación</small>
+            <small>Catálogo local para campos de ubicación</small>
         </button>
 
         <button class="admin-card" type="button" onclick="mostrarAdminTurnos()">
             <span>Turnos</span>
-            <small>Catalogo local para campos de turno</small>
+            <small>Catálogo local para campos de turno</small>
         </button>
 
         <button class="admin-card" type="button" onclick="mostrarHistorialAdmin()">
@@ -910,10 +914,10 @@ function mostrarPanelAdmin(opciones = {}) {
 
         <button class="admin-card" type="button" onclick="mostrarAdminDatos()">
             <span>Datos</span>
-            <small>Exportar, importar o restaurar configuracion</small>
+            <small>Exportar, importar o restaurar configuración</small>
         </button>
 
-        <button class="btn-volver" onclick="cerrarSesionAdmin()">Cerrar sesion</button>
+        <button class="btn-volver" onclick="cerrarSesionAdmin()">Cerrar sesión</button>
     `;
 }
 
@@ -931,7 +935,7 @@ function renderAdminFormularios() {
 
     adminTipoReporteSeleccionado = tipo?.id || null;
 
-    cambiarHeader("Formularios", "Diseno local del mensaje");
+    cambiarHeader("Formularios", "Diseño local del mensaje");
     appContent.className = "app-content admin-formularios";
 
     const opcionesTipos = configuracion.tiposReportes.filter(item => item.activo).map(item => `
@@ -1000,7 +1004,7 @@ function renderListaCamposAdmin(tipo) {
     const campos = tipo.campos.filter(campo => campo.activo).sort((a, b) => a.orden - b.orden);
 
     if (campos.length === 0) {
-        return `<div class="info-card">Este formulario aun no tiene campos.</div>`;
+        return `<div class="info-card">Este formulario aún no tiene campos.</div>`;
     }
 
     return `
@@ -1095,7 +1099,7 @@ function renderEditorCampoAdmin(tipo) {
             </div>
             <div class="form-group">
                 <label>Nombre interno</label>
-                <input type="text" name="nombre_campo" value="${campo.nombre_campo}" placeholder="se genera desde la etiqueta">
+                <input type="text" name="nombre_campo" value="${campo.nombre_campo}" placeholder="Se genera desde la etiqueta">
             </div>
             <div class="form-group">
                 <label>Tipo de campo</label>
@@ -1109,11 +1113,11 @@ function renderEditorCampoAdmin(tipo) {
             </div>
             <div class="form-group" data-config-campo="opciones">
                 <label>Opciones</label>
-                <textarea name="opciones" rows="3" placeholder="Una|Dos|Tres">${campo.opciones || ""}</textarea>
-                <small>Solo para lista desplegable. Separe cada opcion con |</small>
+                <textarea name="opciones" rows="3" placeholder="Opción 1|Opción 2|Opción 3">${campo.opciones || ""}</textarea>
+                <small>Solo para lista desplegable. Separe cada opción con |</small>
             </div>
             <div class="form-group" data-config-campo="catalogo">
-                <label>Catalogo</label>
+                <label>Catálogo</label>
                 <select name="catalogo_origen">
                     ${obtenerCatalogosDisponibles().map(catalogo => `
                         <option value="${catalogo.clave}" ${catalogo.clave === campo.catalogo_origen ? "selected" : ""}>
@@ -1315,7 +1319,7 @@ function insertarVariablePlantilla(variable) {
 function mostrarAdminGuardias(opciones = {}) {
     registrarNavegacion("adminGuardias", {}, opciones);
     const configuracion = obtenerConfiguracion();
-    cambiarHeader("Guardias", "Catalogo local");
+    cambiarHeader("Guardias", "Catálogo local");
     appContent.className = "app-content admin-formularios";
     appContent.innerHTML = `
         <form id="formGuardia" class="form-card">
@@ -1367,7 +1371,7 @@ function desactivarGuardia(id) {
 function mostrarAdminLugares(opciones = {}) {
     registrarNavegacion("adminLugares", {}, opciones);
     const configuracion = obtenerConfiguracion();
-    cambiarHeader("Ubicaciones", "Catalogo local");
+    cambiarHeader("Ubicaciones", "Catálogo local");
     appContent.className = "app-content admin-formularios";
     appContent.innerHTML = `
         <form id="formLugar" class="form-card">
@@ -1419,7 +1423,7 @@ function desactivarLugar(id) {
 function mostrarAdminTurnos(opciones = {}) {
     registrarNavegacion("adminTurnos", {}, opciones);
     const configuracion = obtenerConfiguracion();
-    cambiarHeader("Turnos", "Catalogo local");
+    cambiarHeader("Turnos", "Catálogo local");
     appContent.className = "app-content admin-formularios";
     appContent.innerHTML = `
         <form id="formTurno" class="form-card">
@@ -1482,7 +1486,7 @@ function mostrarHistorialAdmin(opciones = {}) {
                         <span>${new Date(item.fecha).toLocaleString("es-MX")}</span>
                     </div>
                 </div>
-            `).join("") || `<div class="info-card">Aun no hay historial local.</div>`}
+            `).join("") || `<div class="info-card">Aún no hay historial local.</div>`}
         </div>
         <button class="btn-secondary-small" onclick="limpiarHistorial()">Limpiar historial</button>
         <button class="btn-volver" onclick="volverLogico()">Volver</button>
@@ -1502,11 +1506,11 @@ function mostrarAdminDatos(opciones = {}) {
     appContent.className = "app-content admin-formularios";
     appContent.innerHTML = `
         <div class="info-card">
-            La configuracion vive en este dispositivo. Exporte el JSON para copiarla a otros celulares.
+            La configuración vive en este dispositivo. Exporte el JSON para copiarla a otros celulares.
         </div>
-        <button class="btn-main-small" onclick="exportarConfiguracion()">Exportar configuracion</button>
+        <button class="btn-main-small" onclick="exportarConfiguracion()">Exportar configuración</button>
         <label class="btn-secondary-small file-button">
-            Importar configuracion
+            Importar configuración
             <input type="file" accept="application/json" onchange="importarConfiguracion(event)">
         </label>
         <button class="btn-secondary-small" onclick="restaurarConfiguracionInicial()">Restaurar inicial</button>
@@ -1536,10 +1540,10 @@ function importarConfiguracion(event) {
         try {
             const configuracion = JSON.parse(reader.result);
             if (!Array.isArray(configuracion.tiposReportes)) {
-                throw new Error("Archivo invalido");
+                throw new Error("Archivo inválido");
             }
             guardarConfiguracion(configuracion, { preservarCatalogos: false });
-            alert("Configuracion importada.");
+            alert("Configuración importada.");
             mostrarPanelAdmin();
         } catch (error) {
             console.error(error);
@@ -1550,7 +1554,7 @@ function importarConfiguracion(event) {
 }
 
 async function restaurarConfiguracionInicial() {
-    if (confirm("Restaurar la configuracion inicial?")) {
+    if (confirm("Restaurar la configuración inicial?")) {
         const configuracion = await cargarConfiguracionInicial();
         guardarConfiguracion(configuracion, { preservarCatalogos: false });
         mostrarPanelAdmin();

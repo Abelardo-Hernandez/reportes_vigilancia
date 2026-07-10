@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "guardias": [
     {
       "id": 1,
@@ -161,7 +161,7 @@
         },
         {
           "id": 6,
-          "etiqueta": "Descripcion de la novedad",
+          "etiqueta": "Descripción de la novedad",
           "nombre_campo": "descripcion",
           "tipo_campo": "textarea",
           "opciones": "",
@@ -241,7 +241,7 @@
     },
     {
       "id": 3,
-      "nombre": "RONDIN",
+      "nombre": "RONDÍN",
       "clave": "rondin",
       "emoji": "🚶",
       "color": "#f59e0b",
@@ -326,7 +326,7 @@
           "orden": 5
         }
       ],
-      "plantilla": "*RONDIN*\n*Fecha:* {{fecha}}\n\n*Guardia:* {{guardia}}\n*Hora inicio:* {{inicio}}\n*Áreas recorridas:* {{area}}\n*Condiciones detectadas:* {{condiciones}}\n*Hora término:* {{termino}}"
+      "plantilla": "*RONDÍN*\n*Fecha:* {{fecha}}\n\n*Guardia:* {{guardia}}\n*Hora inicio:* {{inicio}}\n*Áreas recorridas:* {{area}}\n*Condiciones detectadas:* {{condiciones}}\n*Hora término:* {{termino}}"
     },
     {
       "id": 4,
@@ -350,7 +350,7 @@
         },
         {
           "id": 11,
-          "etiqueta": "Ubicacion",
+          "etiqueta": "Ubicación",
           "nombre_campo": "ubicacion",
           "tipo_campo": "texto",
           "opciones": "",
@@ -361,7 +361,7 @@
         },
         {
           "id": 12,
-          "etiqueta": "Descripcion",
+          "etiqueta": "Descripción",
           "nombre_campo": "descripcion",
           "tipo_campo": "textarea",
           "opciones": "",
