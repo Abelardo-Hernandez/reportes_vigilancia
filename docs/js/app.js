@@ -10,9 +10,11 @@ const subtituloVista = document.getElementById("subtituloVista");
 
 let vistaPreviaActual = null;
 let formularioActual = null;
+let valoresReporteActual = {};
 let adminActual = null;
 let adminTipoReporteSeleccionado = null;
 let adminCampoEditandoId = null;
+let navegacionInicializada = false;
 
 const TIPOS_CAMPOS = [
     { id: 1, clave: "texto", nombre: "Texto corto" },
@@ -192,7 +194,97 @@ async function asegurarConfiguracionInicial() {
 
 async function inicializarAplicacion() {
     await asegurarConfiguracionInicial();
-    mostrarInicio();
+    history.replaceState({ vista: "inicio", params: {} }, "");
+    navegacionInicializada = true;
+    mostrarInicio({ desdeHistorial: true });
+}
+
+function registrarNavegacion(vista, params = {}, opciones = {}) {
+    if (opciones.desdeHistorial || !navegacionInicializada) {
+        return;
+    }
+
+    const estadoActual = history.state || {};
+    const mismosParams = JSON.stringify(estadoActual.params || {}) === JSON.stringify(params);
+
+    if (estadoActual.vista === vista && mismosParams) {
+        return;
+    }
+
+    history.pushState({ vista, params }, "");
+}
+
+function renderizarDesdeHistorial(estado) {
+    const vista = estado?.vista || "inicio";
+    const params = estado?.params || {};
+    const opciones = { desdeHistorial: true };
+    const esVistaAdmin = vista.startsWith("admin");
+
+    if (esVistaAdmin && !sesionAdminActiva()) {
+        mostrarLogin(opciones);
+        return;
+    }
+
+    if (vista === "menuReportes") {
+        mostrarMenuReportes(opciones);
+        return;
+    }
+
+    if (vista === "reporte") {
+        mostrarReporte(params.clave, opciones);
+        return;
+    }
+
+    if (vista === "preview") {
+        mostrarVistaPrevia(params.clave, opciones);
+        return;
+    }
+
+    if (vista === "login") {
+        mostrarLogin(opciones);
+        return;
+    }
+
+    if (vista === "adminPanel") {
+        mostrarPanelAdmin(opciones);
+        return;
+    }
+
+    if (vista === "adminFormularios") {
+        mostrarAdminFormularios(opciones);
+        return;
+    }
+
+    if (vista === "adminGuardias") {
+        mostrarAdminGuardias(opciones);
+        return;
+    }
+
+    if (vista === "adminLugares") {
+        mostrarAdminLugares(opciones);
+        return;
+    }
+
+    if (vista === "adminTurnos") {
+        mostrarAdminTurnos(opciones);
+        return;
+    }
+
+    if (vista === "adminHistorial") {
+        mostrarHistorialAdmin(opciones);
+        return;
+    }
+
+    if (vista === "adminDatos") {
+        mostrarAdminDatos(opciones);
+        return;
+    }
+
+    mostrarInicio(opciones);
+}
+
+function sesionAdminActiva() {
+    return Boolean(adminActual || localStorage.getItem("rv_admin_sesion") === "activa");
 }
 
 function migrarConfiguracion(configuracion) {
@@ -341,7 +433,8 @@ function cambiarHeader(titulo, subtitulo) {
     subtituloVista.textContent = subtitulo;
 }
 
-function mostrarInicio() {
+function mostrarInicio(opciones = {}) {
+    registrarNavegacion("inicio", {}, opciones);
     cambiarHeader("SEGURIDAD PATRIMONIAL", "Asistente offline de reportes por WhatsApp");
     appContent.className = "app-content home-actions";
     appContent.innerHTML = `
@@ -355,7 +448,8 @@ function mostrarInicio() {
     `;
 }
 
-function mostrarMenuReportes() {
+function mostrarMenuReportes(opciones = {}) {
+    registrarNavegacion("menuReportes", {}, opciones);
     const configuracion = obtenerConfiguracion();
     const tipos = configuracion.tiposReportes
         .filter(tipo => tipo.activo)
@@ -384,7 +478,8 @@ function mostrarMenuReportes() {
     appContent.appendChild(btnVolver);
 }
 
-function mostrarReporte(clave) {
+function mostrarReporte(clave, opciones = {}) {
+    registrarNavegacion("reporte", { clave }, opciones);
     const configuracion = obtenerConfiguracion();
     const tipo = configuracion.tiposReportes.find(item => item.clave === clave && item.activo);
 
@@ -421,6 +516,7 @@ function mostrarReporte(clave) {
     `;
 
     appContent.innerHTML = html;
+    restaurarValoresReporte(clave);
 }
 
 function crearCampoHTML(campo) {
@@ -546,6 +642,7 @@ function generarVistaPrevia(clave) {
             valor: valorFinal || ""
         });
     });
+    valoresReporteActual[clave] = valores;
 
     const mensajeTexto = formularioActual.plantilla
         ? renderizarPlantillaWhatsApp(formularioActual.plantilla, clave, valores)
@@ -554,9 +651,26 @@ function generarVistaPrevia(clave) {
     vistaPreviaActual = {
         tipo_clave: clave,
         tipo_nombre: formularioActual.tipo.nombre,
-        mensaje_whatsapp: mensajeTexto
+        mensaje_whatsapp: mensajeTexto,
+        valores
     };
 
+    registrarNavegacion("preview", { clave });
+    renderizarVistaPrevia(clave, mensajeTexto);
+}
+
+function mostrarVistaPrevia(clave, opciones = {}) {
+    registrarNavegacion("preview", { clave }, opciones);
+
+    if (!vistaPreviaActual || vistaPreviaActual.tipo_clave !== clave) {
+        mostrarReporte(clave, { desdeHistorial: true });
+        return;
+    }
+
+    renderizarVistaPrevia(clave, vistaPreviaActual.mensaje_whatsapp);
+}
+
+function renderizarVistaPrevia(clave, mensajeTexto) {
     appContent.className = "app-content";
     appContent.innerHTML = `
         <div class="preview-card">
@@ -572,6 +686,32 @@ function generarVistaPrevia(clave) {
             Editar
         </button>
     `;
+}
+
+function restaurarValoresReporte(clave) {
+    const valores = valoresReporteActual[clave];
+    const form = document.getElementById("formReporte");
+
+    if (!valores || !form) {
+        return;
+    }
+
+    formularioActual.campos.forEach(campoConfig => {
+        const campo = form.querySelector(`[name="${campoConfig.nombre_campo}"]`);
+
+        if (!campo) {
+            return;
+        }
+
+        const valor = valores[campoConfig.nombre_campo] || "";
+
+        if (campoConfig.tipo_campo === "checkbox") {
+            campo.checked = valor === "Si";
+            return;
+        }
+
+        campo.value = valor;
+    });
 }
 
 function construirMensajeAutomatico(clave, respuestas) {
@@ -627,7 +767,8 @@ function guardarHistorialReporte(reporte) {
     guardarHistorial(historial.slice(0, 200));
 }
 
-function mostrarLogin() {
+function mostrarLogin(opciones = {}) {
+    registrarNavegacion("login", {}, opciones);
     cambiarHeader("ADMINISTRADOR", "Inicio de sesion local");
     appContent.className = "app-content";
     appContent.innerHTML = `
@@ -676,7 +817,8 @@ function mostrarMensajeLogin(mensaje) {
     document.getElementById("formLoginAdmin").appendChild(alerta);
 }
 
-function mostrarPanelAdmin() {
+function mostrarPanelAdmin(opciones = {}) {
+    registrarNavegacion("adminPanel", {}, opciones);
     cambiarHeader("ADMINISTRADOR", "Configuracion local offline");
     appContent.className = "app-content admin-panel";
     appContent.innerHTML = `
@@ -714,7 +856,8 @@ function mostrarPanelAdmin() {
     `;
 }
 
-function mostrarAdminFormularios() {
+function mostrarAdminFormularios(opciones = {}) {
+    registrarNavegacion("adminFormularios", {}, opciones);
     const configuracion = obtenerConfiguracion();
     adminTipoReporteSeleccionado = adminTipoReporteSeleccionado || configuracion.tiposReportes[0]?.id;
     renderAdminFormularios();
@@ -1108,7 +1251,8 @@ function insertarVariablePlantilla(variable) {
     textarea.selectionEnd = inicio + texto.length;
 }
 
-function mostrarAdminGuardias() {
+function mostrarAdminGuardias(opciones = {}) {
+    registrarNavegacion("adminGuardias", {}, opciones);
     const configuracion = obtenerConfiguracion();
     cambiarHeader("Guardias", "Catalogo local");
     appContent.className = "app-content admin-formularios";
@@ -1159,7 +1303,8 @@ function desactivarGuardia(id) {
     mostrarAdminGuardias();
 }
 
-function mostrarAdminLugares() {
+function mostrarAdminLugares(opciones = {}) {
+    registrarNavegacion("adminLugares", {}, opciones);
     const configuracion = obtenerConfiguracion();
     cambiarHeader("Ubicaciones", "Catalogo local");
     appContent.className = "app-content admin-formularios";
@@ -1210,7 +1355,8 @@ function desactivarLugar(id) {
     mostrarAdminLugares();
 }
 
-function mostrarAdminTurnos() {
+function mostrarAdminTurnos(opciones = {}) {
+    registrarNavegacion("adminTurnos", {}, opciones);
     const configuracion = obtenerConfiguracion();
     cambiarHeader("Turnos", "Catalogo local");
     appContent.className = "app-content admin-formularios";
@@ -1261,7 +1407,8 @@ function desactivarTurno(id) {
     mostrarAdminTurnos();
 }
 
-function mostrarHistorialAdmin() {
+function mostrarHistorialAdmin(opciones = {}) {
+    registrarNavegacion("adminHistorial", {}, opciones);
     const historial = obtenerHistorial();
     cambiarHeader("Historial", "Registros locales");
     appContent.className = "app-content admin-formularios";
@@ -1288,7 +1435,8 @@ function limpiarHistorial() {
     }
 }
 
-function mostrarAdminDatos() {
+function mostrarAdminDatos(opciones = {}) {
+    registrarNavegacion("adminDatos", {}, opciones);
     cambiarHeader("Datos", "Respaldo local");
     appContent.className = "app-content admin-formularios";
     appContent.innerHTML = `
@@ -1359,5 +1507,9 @@ if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("service-worker.js").catch(console.error);
     });
 }
+
+window.addEventListener("popstate", event => {
+    renderizarDesdeHistorial(event.state);
+});
 
 inicializarAplicacion();
