@@ -15,6 +15,8 @@ let adminActual = null;
 let adminTipoReporteSeleccionado = null;
 let adminCampoEditandoId = null;
 let navegacionInicializada = false;
+let vistaActual = "inicio";
+let paramsVistaActual = {};
 
 const TIPOS_CAMPOS = [
     { id: 1, clave: "texto", nombre: "Texto corto" },
@@ -200,6 +202,9 @@ async function inicializarAplicacion() {
 }
 
 function registrarNavegacion(vista, params = {}, opciones = {}) {
+    vistaActual = vista;
+    paramsVistaActual = params;
+
     if (opciones.desdeHistorial || !navegacionInicializada) {
         return;
     }
@@ -214,10 +219,36 @@ function registrarNavegacion(vista, params = {}, opciones = {}) {
     history.pushState({ vista, params }, "");
 }
 
-function renderizarDesdeHistorial(estado) {
-    const vista = estado?.vista || "inicio";
-    const params = estado?.params || {};
-    const opciones = { desdeHistorial: true };
+function volverLogico() {
+    const anterior = obtenerVistaAnterior(vistaActual, paramsVistaActual);
+
+    if (!anterior) {
+        return;
+    }
+
+    renderizarVista(anterior.vista, anterior.params, { desdeHistorial: true });
+    history.replaceState({ vista: anterior.vista, params: anterior.params }, "");
+}
+
+function obtenerVistaAnterior(vista, params = {}) {
+    const flujo = {
+        menuReportes: { vista: "inicio", params: {} },
+        reporte: { vista: "menuReportes", params: {} },
+        preview: { vista: "reporte", params },
+        login: { vista: "inicio", params: {} },
+        adminPanel: { vista: "inicio", params: {} },
+        adminFormularios: { vista: "adminPanel", params: {} },
+        adminGuardias: { vista: "adminPanel", params: {} },
+        adminLugares: { vista: "adminPanel", params: {} },
+        adminTurnos: { vista: "adminPanel", params: {} },
+        adminHistorial: { vista: "adminPanel", params: {} },
+        adminDatos: { vista: "adminPanel", params: {} }
+    };
+
+    return flujo[vista] || null;
+}
+
+function renderizarVista(vista, params = {}, opciones = {}) {
     const esVistaAdmin = vista.startsWith("admin");
 
     if (esVistaAdmin && !sesionAdminActiva()) {
@@ -474,7 +505,7 @@ function mostrarMenuReportes(opciones = {}) {
     const btnVolver = document.createElement("button");
     btnVolver.className = "btn-volver";
     btnVolver.textContent = "Volver";
-    btnVolver.onclick = mostrarInicio;
+    btnVolver.onclick = volverLogico;
     appContent.appendChild(btnVolver);
 }
 
@@ -486,7 +517,7 @@ function mostrarReporte(clave, opciones = {}) {
     if (!tipo) {
         appContent.innerHTML = `
             <div class="error-box">No fue posible cargar el formulario.</div>
-            <button class="btn-volver" onclick="mostrarMenuReportes()">Volver</button>
+            <button class="btn-volver" onclick="volverLogico()">Volver</button>
         `;
         return;
     }
@@ -512,7 +543,7 @@ function mostrarReporte(clave, opciones = {}) {
         </button>
     </form>
 
-    <button class="btn-volver" onclick="mostrarMenuReportes()">Volver</button>
+    <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 
     appContent.innerHTML = html;
@@ -689,12 +720,7 @@ function renderizarVistaPrevia(clave, mensajeTexto) {
 }
 
 function editarReporteDesdeVistaPrevia(clave) {
-    if (history.state?.vista === "preview") {
-        history.back();
-        return;
-    }
-
-    mostrarReporte(clave);
+    volverLogico();
 }
 
 function restaurarValoresReporte(clave) {
@@ -791,7 +817,7 @@ function mostrarLogin(opciones = {}) {
             <button type="submit" class="btn-main-small">Ingresar</button>
         </form>
 
-        <button class="btn-volver" onclick="mostrarInicio()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 
     document.getElementById("formLoginAdmin").addEventListener("submit", iniciarSesionAdmin);
@@ -899,7 +925,7 @@ function renderAdminFormularios() {
         ${tipo ? renderEditorPlantillaAdmin(tipo) : ""}
         ${tipo ? renderEditorCampoAdmin(tipo) : ""}
 
-        <button class="btn-volver" onclick="mostrarPanelAdmin()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 
     document.getElementById("adminTipoReporteSelect")?.addEventListener("change", event => {
@@ -1286,7 +1312,7 @@ function mostrarAdminGuardias(opciones = {}) {
                 </div>
             `).join("") || `<div class="info-card">No hay guardias registrados.</div>`}
         </div>
-        <button class="btn-volver" onclick="mostrarPanelAdmin()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
     document.getElementById("formGuardia").addEventListener("submit", guardarGuardiaAdmin);
 }
@@ -1338,7 +1364,7 @@ function mostrarAdminLugares(opciones = {}) {
                 </div>
             `).join("") || `<div class="info-card">No hay ubicaciones registradas.</div>`}
         </div>
-        <button class="btn-volver" onclick="mostrarPanelAdmin()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
     document.getElementById("formLugar").addEventListener("submit", guardarLugarAdmin);
 }
@@ -1390,7 +1416,7 @@ function mostrarAdminTurnos(opciones = {}) {
                 </div>
             `).join("") || `<div class="info-card">No hay turnos registrados.</div>`}
         </div>
-        <button class="btn-volver" onclick="mostrarPanelAdmin()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
     document.getElementById("formTurno").addEventListener("submit", guardarTurnoAdmin);
 }
@@ -1433,7 +1459,7 @@ function mostrarHistorialAdmin(opciones = {}) {
             `).join("") || `<div class="info-card">Aun no hay historial local.</div>`}
         </div>
         <button class="btn-secondary-small" onclick="limpiarHistorial()">Limpiar historial</button>
-        <button class="btn-volver" onclick="mostrarPanelAdmin()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 }
 
@@ -1458,7 +1484,7 @@ function mostrarAdminDatos(opciones = {}) {
             <input type="file" accept="application/json" onchange="importarConfiguracion(event)">
         </label>
         <button class="btn-secondary-small" onclick="restaurarConfiguracionInicial()">Restaurar inicial</button>
-        <button class="btn-volver" onclick="mostrarPanelAdmin()">Volver</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 }
 
@@ -1518,7 +1544,7 @@ if ("serviceWorker" in navigator) {
 }
 
 window.addEventListener("popstate", event => {
-    renderizarDesdeHistorial(event.state);
+    volverLogico();
 });
 
 inicializarAplicacion();
