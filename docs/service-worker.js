@@ -1,4 +1,4 @@
-const CACHE_NAME = "reportes-vigilancia-v13";
+const CACHE_NAME = "reportes-vigilancia-v14";
 const APP_SHELL = [
     "./",
     "./index.html",

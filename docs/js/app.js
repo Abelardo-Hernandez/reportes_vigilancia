@@ -682,10 +682,19 @@ function renderizarVistaPrevia(clave, mensajeTexto) {
             Abrir WhatsApp
         </button>
 
-        <button class="btn-volver" onclick="mostrarReporte('${clave}')">
+        <button class="btn-volver" onclick="editarReporteDesdeVistaPrevia('${clave}')">
             Editar
         </button>
     `;
+}
+
+function editarReporteDesdeVistaPrevia(clave) {
+    if (history.state?.vista === "preview") {
+        history.back();
+        return;
+    }
+
+    mostrarReporte(clave);
 }
 
 function restaurarValoresReporte(clave) {
