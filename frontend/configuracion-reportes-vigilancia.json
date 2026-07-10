@@ -1,0 +1,665 @@
+{
+  "version": 5,
+  "guardias": [
+    {
+      "id": 1,
+      "nombre": "Porfirio Calixto Hernández Flores",
+      "activo": true
+    },
+    {
+      "id": 2,
+      "nombre": "Elizabeth Rodríguez Rodríguez",
+      "activo": true
+    },
+    {
+      "id": 3,
+      "nombre": "Tiburcio Cuatianquiz Cuapio",
+      "activo": true
+    },
+    {
+      "id": 4,
+      "nombre": "Ramos Jiménez Tecuapacho",
+      "activo": true
+    }
+  ],
+  "lugares": [
+    {
+      "id": 1,
+      "nombre": "Caseta Principal",
+      "activo": false
+    },
+    {
+      "id": 2,
+      "nombre": "Caseta Norte",
+      "activo": false
+    },
+    {
+      "id": 3,
+      "nombre": "Caseta Sur",
+      "activo": false
+    },
+    {
+      "id": 4,
+      "nombre": "Patio",
+      "activo": false
+    },
+    {
+      "id": 5,
+      "nombre": "Estacionamiento",
+      "activo": false
+    },
+    {
+      "id": 6,
+      "nombre": "Confecciones C1",
+      "activo": true
+    },
+    {
+      "id": 7,
+      "nombre": "Confecciones C2",
+      "activo": true
+    }
+  ],
+  "turnos": [
+    {
+      "id": 1,
+      "nombre": "24 x 24",
+      "activo": true
+    },
+    {
+      "id": 2,
+      "nombre": "12 x 12",
+      "activo": true
+    }
+  ],
+  "tiposReportes": [
+    {
+      "id": 1,
+      "nombre": "ASISTENCIA",
+      "clave": "asistencia",
+      "emoji": "👮",
+      "color": "#2563eb",
+      "orden": 1,
+      "activo": true,
+      "campos": [
+        {
+          "id": 1,
+          "etiqueta": "Guardia",
+          "nombre_campo": "guardia",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "guardias",
+          "obligatorio": true,
+          "orden": 1,
+          "activo": true
+        },
+        {
+          "id": 2,
+          "etiqueta": "Turno",
+          "nombre_campo": "turno",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "turnos",
+          "obligatorio": true,
+          "orden": 2,
+          "activo": true
+        },
+        {
+          "id": 3,
+          "etiqueta": "Observaciones",
+          "nombre_campo": "observaciones",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 3,
+          "activo": false
+        },
+        {
+          "id": 15,
+          "activo": true,
+          "etiqueta": "Ubicación",
+          "nombre_campo": "ubicacion",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "lugares",
+          "obligatorio": true,
+          "orden": 3
+        }
+      ],
+      "plantilla": "*ASISTENCIA*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}\n\n*Guardia:* {{guardia}}\n*Turno:* {{turno}}\n*Ubicación:* {{ubicacion}}"
+    },
+    {
+      "id": 2,
+      "nombre": "NOVEDAD",
+      "clave": "novedad",
+      "emoji": "📝",
+      "color": "#16a34a",
+      "orden": 2,
+      "activo": true,
+      "campos": [
+        {
+          "id": 4,
+          "etiqueta": "Guardia",
+          "nombre_campo": "guardia",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "guardias",
+          "obligatorio": true,
+          "orden": 1,
+          "activo": true
+        },
+        {
+          "id": 5,
+          "etiqueta": "Ubicación",
+          "nombre_campo": "ubicacion",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "lugares",
+          "obligatorio": true,
+          "orden": 2,
+          "activo": true
+        },
+        {
+          "id": 6,
+          "etiqueta": "Descripcion de la novedad",
+          "nombre_campo": "descripcion",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3,
+          "activo": false
+        },
+        {
+          "id": 16,
+          "activo": true,
+          "etiqueta": "Evento",
+          "nombre_campo": "observacion",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3
+        },
+        {
+          "id": 17,
+          "activo": false,
+          "etiqueta": "Responsable que autoriza",
+          "nombre_campo": "responsable",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 5
+        },
+        {
+          "id": 18,
+          "activo": false,
+          "etiqueta": "Personal que ingresa",
+          "nombre_campo": "personal_que_ingresa",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 6
+        },
+        {
+          "id": 19,
+          "activo": true,
+          "etiqueta": "Responsable que autoriza",
+          "nombre_campo": "responsable",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 4
+        },
+        {
+          "id": 20,
+          "activo": true,
+          "etiqueta": "Personal que ingresa",
+          "nombre_campo": "personal",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 5
+        },
+        {
+          "id": 21,
+          "activo": true,
+          "etiqueta": "Material ingresado",
+          "nombre_campo": "material",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 6
+        }
+      ],
+      "plantilla": "*{{tipo_reporte}}*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}\n\n*Guardia:* {{guardia}}\n*Ubicación:* {{ubicacion}}\n*Evento:* {{observacion}}\n*Responsable que autoriza:* {{responsable}}\n*Personal que ingresa:* {{personal}}\n*Material ingresado:* {{material}}"
+    },
+    {
+      "id": 3,
+      "nombre": "RONDIN",
+      "clave": "rondin",
+      "emoji": "🚶",
+      "color": "#f59e0b",
+      "orden": 3,
+      "activo": true,
+      "campos": [
+        {
+          "id": 7,
+          "etiqueta": "Guardia",
+          "nombre_campo": "guardia",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "guardias",
+          "obligatorio": true,
+          "orden": 1,
+          "activo": true
+        },
+        {
+          "id": 8,
+          "etiqueta": "Zona",
+          "nombre_campo": "zona",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 2,
+          "activo": false
+        },
+        {
+          "id": 9,
+          "etiqueta": "Resultado",
+          "nombre_campo": "resultado",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3,
+          "activo": false
+        },
+        {
+          "id": 22,
+          "activo": true,
+          "etiqueta": "Hora inicio",
+          "nombre_campo": "inicio",
+          "tipo_campo": "hora",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 2
+        },
+        {
+          "id": 23,
+          "activo": true,
+          "etiqueta": "Áreas recorridas",
+          "nombre_campo": "area",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3
+        },
+        {
+          "id": 24,
+          "activo": true,
+          "etiqueta": "Condiciones detectadas",
+          "nombre_campo": "condiciones",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 4
+        },
+        {
+          "id": 25,
+          "activo": true,
+          "etiqueta": "Hora término",
+          "nombre_campo": "termino",
+          "tipo_campo": "hora",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 5
+        }
+      ],
+      "plantilla": "*RONDIN*\n*Fecha:* {{fecha}}\n\n*Guardia:* {{guardia}}\n*Hora inicio:* {{inicio}}\n*Áreas recorridas:* {{area}}\n*Condiciones detectadas:* {{condiciones}}\n*Hora término:* {{termino}}"
+    },
+    {
+      "id": 4,
+      "nombre": "INCIDENCIA",
+      "clave": "incidencia",
+      "emoji": "🚨",
+      "color": "#dc2626",
+      "orden": 4,
+      "activo": true,
+      "campos": [
+        {
+          "id": 10,
+          "etiqueta": "Guardia",
+          "nombre_campo": "guardia",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "guardias",
+          "obligatorio": true,
+          "orden": 1,
+          "activo": true
+        },
+        {
+          "id": 11,
+          "etiqueta": "Ubicacion",
+          "nombre_campo": "ubicacion",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 2,
+          "activo": false
+        },
+        {
+          "id": 12,
+          "etiqueta": "Descripcion",
+          "nombre_campo": "descripcion",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3,
+          "activo": false
+        },
+        {
+          "id": 26,
+          "activo": true,
+          "etiqueta": "Ubicación",
+          "nombre_campo": "ubicacion",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "lugares",
+          "obligatorio": true,
+          "orden": 2
+        },
+        {
+          "id": 27,
+          "activo": true,
+          "etiqueta": "Descripción",
+          "nombre_campo": "descripcion",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3
+        },
+        {
+          "id": 28,
+          "activo": true,
+          "etiqueta": "Personas involucradas",
+          "nombre_campo": "involucradas",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 4
+        },
+        {
+          "id": 29,
+          "activo": true,
+          "etiqueta": "Acción realizada",
+          "nombre_campo": "accion",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 5
+        },
+        {
+          "id": 30,
+          "activo": true,
+          "etiqueta": "Resultado",
+          "nombre_campo": "resultado",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 6
+        }
+      ],
+      "plantilla": "*INCIDENCIA*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}\n\n*Guardia:* {{guardia}}\n*Lugar del incidente:* {{ubicacion}}\n*Descripción:* {{descripcion}}\n*Personas involucradas:* {{involucradas}}\n*Acción realizada:* {{accion}}\n*Resultado:* {{resultado}}"
+    },
+    {
+      "id": 5,
+      "nombre": "TRANSPORTE - ENTRADA",
+      "clave": "transporte_entrada",
+      "emoji": "🚚",
+      "color": "#40dd94",
+      "orden": 5,
+      "activo": true,
+      "campos": [
+        {
+          "id": 13,
+          "activo": false,
+          "etiqueta": "Guardia",
+          "nombre_campo": "guardia",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "guardias",
+          "obligatorio": true,
+          "orden": 1
+        },
+        {
+          "id": 31,
+          "activo": true,
+          "etiqueta": "Hora de ingreso",
+          "nombre_campo": "ingreso",
+          "tipo_campo": "hora",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 1
+        },
+        {
+          "id": 32,
+          "activo": true,
+          "etiqueta": "Empresa transportista",
+          "nombre_campo": "empresa",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 2
+        },
+        {
+          "id": 33,
+          "activo": true,
+          "etiqueta": "Origen",
+          "nombre_campo": "origen",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 3
+        },
+        {
+          "id": 34,
+          "activo": true,
+          "etiqueta": "Número de sello o marchamo",
+          "nombre_campo": "sello",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 4
+        },
+        {
+          "id": 35,
+          "activo": true,
+          "etiqueta": "Condiciones de sello",
+          "nombre_campo": "condiciones",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 5
+        },
+        {
+          "id": 36,
+          "activo": true,
+          "etiqueta": "Validación documental",
+          "nombre_campo": "documento",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 6
+        },
+        {
+          "id": 37,
+          "activo": true,
+          "etiqueta": "Número económico",
+          "nombre_campo": "num_economico",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 7
+        },
+        {
+          "id": 38,
+          "activo": true,
+          "etiqueta": "Placas",
+          "nombre_campo": "placas",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 8
+        },
+        {
+          "id": 39,
+          "activo": true,
+          "etiqueta": "Nombre del conductor",
+          "nombre_campo": "conductor",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 9
+        },
+        {
+          "id": 40,
+          "activo": true,
+          "etiqueta": "Número de licencia de conducir",
+          "nombre_campo": "licencia",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 10
+        },
+        {
+          "id": 41,
+          "activo": true,
+          "etiqueta": "Material que transporta",
+          "nombre_campo": "material",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 11
+        },
+        {
+          "id": 42,
+          "activo": true,
+          "etiqueta": "Carga o descarga",
+          "nombre_campo": "carga",
+          "tipo_campo": "select",
+          "opciones": "Carga | Descarga",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 12
+        }
+      ],
+      "plantilla": "*{{tipo_reporte}}*\n*Fecha:* {{fecha}}\n*Hora de ingreso:* {{ingreso}}\n*Empresa transportista:* {{empresa}}\n*Origen:* {{origen}}\n*Número de sello o marchamo:* {{sello}}\n*Condiciones de sello:* {{condiciones}}\n*Validación documental:* {{documento}}\n*Número económico:* {{num_economico}}\n*Placas:* {{placas}}\n*Nombre del conductor:* {{conductor}}\n*Número de licencia de conducir:* {{licencia}}\n*Material que transporta:* {{material}}\n*Carga o descarga:* {{carga}}"
+    },
+    {
+      "id": 6,
+      "nombre": "TRANSPORTE - SALIDA",
+      "clave": "transporte_salida",
+      "emoji": "🚚",
+      "color": "#2fc6e4",
+      "orden": 6,
+      "activo": true,
+      "campos": [
+        {
+          "id": 14,
+          "activo": false,
+          "etiqueta": "Guardia",
+          "nombre_campo": "guardia",
+          "tipo_campo": "catalogo",
+          "opciones": "",
+          "catalogo_origen": "guardias",
+          "obligatorio": true,
+          "orden": 1
+        },
+        {
+          "id": 43,
+          "activo": true,
+          "etiqueta": "Validación documental",
+          "nombre_campo": "documento",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": true,
+          "orden": 1
+        },
+        {
+          "id": 44,
+          "activo": true,
+          "etiqueta": "Sellos",
+          "nombre_campo": "sellos",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 2
+        },
+        {
+          "id": 45,
+          "activo": true,
+          "etiqueta": "Destino",
+          "nombre_campo": "destino",
+          "tipo_campo": "texto",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 3
+        },
+        {
+          "id": 46,
+          "activo": true,
+          "etiqueta": "Carga o descarga",
+          "nombre_campo": "carga",
+          "tipo_campo": "select",
+          "opciones": "Carga | Descarga",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 4
+        },
+        {
+          "id": 47,
+          "activo": true,
+          "etiqueta": "Observaciones",
+          "nombre_campo": "observacion",
+          "tipo_campo": "textarea",
+          "opciones": "",
+          "catalogo_origen": "",
+          "obligatorio": false,
+          "orden": 5
+        }
+      ],
+      "plantilla": "*{{tipo_reporte}}*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}\n*Validación documental:* {{documento}}\n*Sellos:* {{sellos}}\n*Destino:* {{destino}}\n*Carga o descarga:* {{carga}}\n*Observaciones:* {{observacion}}"
+    }
+  ]
+}

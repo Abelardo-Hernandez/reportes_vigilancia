@@ -1,0 +1,19 @@
+{
+    "name": "Reportes de Vigilancia",
+    "short_name": "Reportes",
+    "description": "Asistente offline para generar reportes de vigilancia por WhatsApp.",
+    "start_url": "./index.html",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#f8faf9",
+    "theme_color": "#198754",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

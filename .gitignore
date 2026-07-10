@@ -1,0 +1,8 @@
+node_modules/
+backend/
+.agents/
+.env
+*.log
+*.tmp
+Thumbs.db
+.DS_Store
