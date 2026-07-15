@@ -1,7 +1,7 @@
 {
     "name": "Reportes de Vigilancia",
     "short_name": "Reportes",
-    "description": "Asistente offline para generar reportes de vigilancia por WhatsApp.",
+    "description": "Asistente para generar reportes de vigilancia por WhatsApp.",
     "start_url": "./index.html",
     "scope": "./",
     "display": "standalone",
