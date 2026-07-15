@@ -1,4 +1,4 @@
-const CACHE_NAME = "reportes-vigilancia-v21";
+const CACHE_NAME = "reportes-vigilancia-v25";
 const APP_SHELL = [
     "./",
     "./index.html",
@@ -30,6 +30,20 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
     if (event.request.method !== "GET") {
+        return;
+    }
+
+    const url = new URL(event.request.url);
+    const esConfiguracion = url.pathname.endsWith("/configuracion-reportes-vigilancia.json");
+
+    if (esConfiguracion) {
+        event.respondWith(
+            fetch(event.request).then(response => {
+                const copy = response.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+                return response;
+            }).catch(() => caches.match(event.request, { ignoreSearch: true }))
+        );
         return;
     }
 

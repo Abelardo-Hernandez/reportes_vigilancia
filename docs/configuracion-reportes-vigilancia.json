@@ -1,5 +1,25 @@
 {
   "version": 6,
+  "catalogos": [
+    {
+      "clave": "guardias",
+      "nombre": "Guardias",
+      "activo": true,
+      "sistema": true
+    },
+    {
+      "clave": "lugares",
+      "nombre": "Ubicaciones",
+      "activo": true,
+      "sistema": true
+    },
+    {
+      "clave": "turnos",
+      "nombre": "Turnos",
+      "activo": true,
+      "sistema": true
+    }
+  ],
   "guardias": [
     {
       "id": 1,
@@ -25,36 +45,11 @@
   "lugares": [
     {
       "id": 1,
-      "nombre": "Caseta Principal",
-      "activo": false
-    },
-    {
-      "id": 2,
-      "nombre": "Caseta Norte",
-      "activo": false
-    },
-    {
-      "id": 3,
-      "nombre": "Caseta Sur",
-      "activo": false
-    },
-    {
-      "id": 4,
-      "nombre": "Patio",
-      "activo": false
-    },
-    {
-      "id": 5,
-      "nombre": "Estacionamiento",
-      "activo": false
-    },
-    {
-      "id": 6,
       "nombre": "Confecciones C1",
       "activo": true
     },
     {
-      "id": 7,
+      "id": 2,
       "nombre": "Confecciones C2",
       "activo": true
     }
@@ -581,7 +576,7 @@
           "orden": 12
         }
       ],
-      "plantilla": "*{{tipo_reporte}}*\n*Fecha:* {{fecha}}\n*Hora de ingreso:* {{ingreso}}\n*Empresa transportista:* {{empresa}}\n*Origen:* {{origen}}\n*Número de sello o marchamo:* {{sello}}\n*Condiciones de sello:* {{condiciones}}\n*Validación documental:* {{documento}}\n*Número económico:* {{num_economico}}\n*Placas:* {{placas}}\n*Nombre del conductor:* {{conductor}}\n*Número de licencia de conducir:* {{licencia}}\n*Material que transporta:* {{material}}\n*Carga o descarga:* {{carga}}"
+      "plantilla": "*TRANSPORTE - ENTRADA*\n*Fecha:* {{fecha}}\n*Hora de ingreso:* {{ingreso}}\n*Empresa transportista:* {{empresa}}\n*Origen:* {{origen}}\n*Número de sello o marchamo:* {{sello}}\n*Condiciones de sello:* {{condiciones}}\n*Validación documental:* {{documento}}\n*Número económico:* {{num_economico}}\n*Placas:* {{placas}}\n*Nombre del conductor:* {{conductor}}\n*Número de licencia de conducir:* {{licencia}}\n*Material que transporta:* {{material}}\n*Carga o descarga:* {{carga}}"
     },
     {
       "id": 6,
@@ -659,7 +654,7 @@
           "orden": 5
         }
       ],
-      "plantilla": "*{{tipo_reporte}}*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}\n*Validación documental:* {{documento}}\n*Sellos:* {{sellos}}\n*Destino:* {{destino}}\n*Carga o descarga:* {{carga}}\n*Observaciones:* {{observacion}}"
+      "plantilla": "*TRANSPORTE - SALIDA*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}\n*Validación documental:* {{documento}}\n*Sellos:* {{sellos}}\n*Destino:* {{destino}}\n*Carga o descarga:* {{carga}}\n*Observaciones:* {{observacion}}"
     }
   ]
 }

@@ -1,4 +1,5 @@
 ﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
+const STORAGE_CONFIG_SOURCE_KEY = "rv_configuracion_archivo";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
 const ADMIN_USUARIO = "admin";
@@ -14,6 +15,7 @@ let valoresReporteActual = {};
 let adminActual = null;
 let adminTipoReporteSeleccionado = null;
 let adminCampoEditandoId = null;
+let adminCatalogoSeleccionado = null;
 let navegacionInicializada = false;
 let vistaActual = "inicio";
 let paramsVistaActual = {};
@@ -163,9 +165,16 @@ function obtenerConfiguracion() {
     return migrada;
 }
 
-async function cargarConfiguracionInicial() {
+function crearFirmaConfiguracion(configuracion) {
+    return JSON.stringify(configuracion);
+}
+
+async function cargarConfiguracionInicial(opciones = {}) {
     try {
-        const respuesta = await fetch(CONFIG_INICIAL_URL);
+        const url = opciones.evitarCache
+            ? `${CONFIG_INICIAL_URL}?actualizado=${Date.now()}`
+            : CONFIG_INICIAL_URL;
+        const respuesta = await fetch(url, { cache: "no-store" });
 
         if (!respuesta.ok) {
             throw new Error("No fue posible cargar la configuración inicial.");
@@ -180,18 +189,48 @@ async function cargarConfiguracionInicial() {
         return migrarConfiguracion(configuracion);
     } catch (error) {
         console.error(error);
+        if (opciones.permitirFallback === false) {
+            throw error;
+        }
         return migrarConfiguracion(crearConfiguracionInicial());
     }
 }
 
 async function asegurarConfiguracionInicial() {
-    if (localStorage.getItem(STORAGE_CONFIG_KEY)) {
+    const rawActual = localStorage.getItem(STORAGE_CONFIG_KEY);
+
+    try {
+        const inicial = await cargarConfiguracionInicial({
+            evitarCache: true,
+            permitirFallback: false
+        });
+        const firmaInicial = crearFirmaConfiguracion(inicial);
+        const firmaGuardada = localStorage.getItem(STORAGE_CONFIG_SOURCE_KEY);
+
+        if (!rawActual || firmaGuardada !== firmaInicial) {
+            guardarConfiguracion(inicial, {
+                preservarCatalogos: false,
+                firmaArchivo: firmaInicial
+            });
+            return;
+        }
+
+        obtenerConfiguracion();
+        return;
+    } catch (error) {
+        console.error(error);
+    }
+
+    if (rawActual) {
         obtenerConfiguracion();
         return;
     }
 
     const inicial = await cargarConfiguracionInicial();
-    guardarConfiguracion(inicial, { preservarCatalogos: false });
+    guardarConfiguracion(inicial, {
+        preservarCatalogos: false,
+        firmaArchivo: crearFirmaConfiguracion(inicial)
+    });
 }
 
 async function inicializarAplicacion() {
@@ -243,9 +282,7 @@ function obtenerVistaAnterior(vista, params = {}) {
         login: { vista: "inicio", params: {} },
         adminPanel: { vista: "inicio", params: {} },
         adminFormularios: { vista: "adminPanel", params: {} },
-        adminGuardias: { vista: "adminPanel", params: {} },
-        adminLugares: { vista: "adminPanel", params: {} },
-        adminTurnos: { vista: "adminPanel", params: {} },
+        adminCatalogos: { vista: "adminPanel", params: {} },
         adminHistorial: { vista: "adminPanel", params: {} },
         adminDatos: { vista: "adminPanel", params: {} }
     };
@@ -291,18 +328,8 @@ function renderizarVista(vista, params = {}, opciones = {}) {
         return;
     }
 
-    if (vista === "adminGuardias") {
-        mostrarAdminGuardias(opciones);
-        return;
-    }
-
-    if (vista === "adminLugares") {
-        mostrarAdminLugares(opciones);
-        return;
-    }
-
-    if (vista === "adminTurnos") {
-        mostrarAdminTurnos(opciones);
+    if (vista === "adminCatalogos") {
+        mostrarAdminCatalogos(opciones);
         return;
     }
 
@@ -346,6 +373,7 @@ function migrarConfiguracion(configuracion) {
             tipo.nombre = "RONDÍN";
         }
         tipo.campos = tipo.campos || [];
+        asegurarCampoHoraManual(configuracion, tipo);
 
         tipo.campos.forEach(campo => {
             campo.activo = campo.activo !== false;
@@ -386,8 +414,86 @@ function migrarConfiguracion(configuracion) {
         }
     });
 
+    asegurarCatalogosConfiguracion(configuracion);
     configuracion.version = 6;
     return configuracion;
+}
+
+function asegurarCatalogosConfiguracion(configuracion) {
+    const catalogosBase = [
+        { clave: "guardias", nombre: "Guardias", activo: true, sistema: true },
+        { clave: "lugares", nombre: "Ubicaciones", activo: true, sistema: true },
+        { clave: "turnos", nombre: "Turnos", activo: true, sistema: true }
+    ];
+    const mapa = new Map();
+
+    catalogosBase.forEach(catalogo => mapa.set(catalogo.clave, catalogo));
+
+    (configuracion.catalogos || []).forEach(catalogo => {
+        if (!catalogo?.clave) {
+            return;
+        }
+        mapa.set(catalogo.clave, {
+            ...mapa.get(catalogo.clave),
+            ...catalogo,
+            activo: catalogo.activo !== false
+        });
+    });
+
+    configuracion.tiposReportes
+        .flatMap(tipo => tipo.campos || [])
+        .filter(campo => campo.tipo_campo === "catalogo" && campo.catalogo_origen)
+        .forEach(campo => {
+            if (!mapa.has(campo.catalogo_origen)) {
+                mapa.set(campo.catalogo_origen, {
+                    clave: campo.catalogo_origen,
+                    nombre: capitalizarEtiqueta(campo.catalogo_origen.replace(/_/g, " ")),
+                    activo: true,
+                    sistema: false
+                });
+            }
+        });
+
+    configuracion.catalogos = Array.from(mapa.values()).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    configuracion.catalogos.forEach(catalogo => {
+        if (!Array.isArray(configuracion[catalogo.clave])) {
+            configuracion[catalogo.clave] = [];
+        }
+    });
+}
+
+function asegurarCampoHoraManual(configuracion, tipo) {
+    if (tipo.clave === "rondin") {
+        return;
+    }
+
+    const usaHoraEnPlantilla = (tipo.plantilla || "").includes("{{hora}}");
+    const campoHora = tipo.campos.find(campo => campo.nombre_campo === "hora");
+
+    if (!usaHoraEnPlantilla) {
+        return;
+    }
+
+    if (campoHora) {
+        campoHora.etiqueta = campoHora.etiqueta || "Hora";
+        campoHora.tipo_campo = "hora";
+        campoHora.obligatorio = true;
+        campoHora.activo = true;
+        campoHora.orden = Number(campoHora.orden || 0);
+        return;
+    }
+
+    tipo.campos.push({
+        id: siguienteIdCampo(configuracion),
+        etiqueta: "Hora",
+        nombre_campo: "hora",
+        tipo_campo: "hora",
+        opciones: "",
+        catalogo_origen: "",
+        obligatorio: true,
+        orden: 0,
+        activo: true
+    });
 }
 
 function guardarConfiguracion(configuracion, opciones = {}) {
@@ -397,15 +503,29 @@ function guardarConfiguracion(configuracion, opciones = {}) {
     if (debePreservarCatalogos && rawActual) {
         try {
             const actual = JSON.parse(rawActual);
-            configuracion.guardias = fusionarCatalogo(actual.guardias, configuracion.guardias);
-            configuracion.lugares = fusionarCatalogo(actual.lugares, configuracion.lugares);
-            configuracion.turnos = fusionarCatalogo(actual.turnos, configuracion.turnos);
+            const clavesCatalogos = new Set([
+                "guardias",
+                "lugares",
+                "turnos",
+                ...(actual.catalogos || []).map(catalogo => catalogo.clave),
+                ...(configuracion.catalogos || []).map(catalogo => catalogo.clave)
+            ]);
+
+            clavesCatalogos.forEach(clave => {
+                if (Array.isArray(actual[clave]) || Array.isArray(configuracion[clave])) {
+                    configuracion[clave] = fusionarCatalogo(actual[clave], configuracion[clave]);
+                }
+            });
         } catch (error) {
             console.error(error);
         }
     }
 
     localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(configuracion));
+
+    if (opciones.firmaArchivo) {
+        localStorage.setItem(STORAGE_CONFIG_SOURCE_KEY, opciones.firmaArchivo);
+    }
 }
 
 function fusionarCatalogo(actual = [], siguiente = []) {
@@ -558,7 +678,6 @@ function mostrarReporte(clave, opciones = {}) {
     appContent.className = "app-content formulario-content";
 
     let html = `
-        <button type="button" class="btn-volver btn-volver-formulario" onclick="volverLogico()">Volver</button>
         <form id="formReporte" class="form-card">
     `;
 
@@ -590,12 +709,15 @@ function crearCampoHTML(campo) {
         if (elementos.length > 0) {
             const opciones = elementos.map(item => `<option value="${item.nombre}">${item.nombre}</option>`).join("");
             return `
-                <div class="form-group">
+                <div class="form-group catalogo-form-group" data-catalogo-grupo="${campo.nombre_campo}">
                     <label>${campo.etiqueta}</label>
-                    <select ${atributos}>
+                    <select ${atributos} onchange="actualizarCampoCatalogoOtro('${campo.nombre_campo}')">
                         <option value="">Seleccione ${nombreCatalogo(campo.catalogo_origen)}</option>
                         ${opciones}
+                        <option value="__otro__">Otro</option>
                     </select>
+                    <input class="catalogo-otro-input" type="text" name="${campo.nombre_campo}_otro" placeholder="Escriba otro valor" oninput="actualizarCampoCatalogoOtro('${campo.nombre_campo}')">
+                    <small class="catalogo-error" data-catalogo-error="${campo.nombre_campo}"></small>
                     ${obligatorioTexto}
                 </div>
             `;
@@ -665,40 +787,116 @@ function crearCampoHTML(campo) {
 }
 
 function crearCampoHoraHTML(campo, required, obligatorioTexto) {
-    const opcionesHoras = crearOpcionesNumericas(0, 12, "Hora");
-    const opcionesMinutos = crearOpcionesNumericas(0, 59, "Minutos", { rellenar: true });
+    const horas = crearValoresNumericos(1, 12);
+    const minutos = crearValoresNumericos(0, 59, { rellenar: true });
+    const requerido = campo.obligatorio ? "data-required=\"true\"" : "";
 
     return `
-        <div class="form-group">
+        <div class="form-group time-form-group">
             <label>${campo.etiqueta}</label>
             <input type="hidden" name="${campo.nombre_campo}" data-label="${campo.etiqueta}" data-campo-id="${campo.id}">
             <div class="time-selector">
-                <select data-hora-campo="${campo.nombre_campo}" data-hora-parte="hora" ${required} onchange="actualizarCampoHora('${campo.nombre_campo}')">
-                    ${opcionesHoras}
-                </select>
-                <select data-hora-campo="${campo.nombre_campo}" data-hora-parte="minuto" ${required} onchange="actualizarCampoHora('${campo.nombre_campo}')">
-                    ${opcionesMinutos}
-                </select>
-                <select data-hora-campo="${campo.nombre_campo}" data-hora-parte="periodo" ${required} onchange="actualizarCampoHora('${campo.nombre_campo}')">
-                    <option value="">Periodo</option>
-                    <option value="a.m.">a.m.</option>
-                    <option value="p.m.">p.m.</option>
-                </select>
+                <div class="time-part">
+                    <span>Hora</span>
+                    <button type="button" class="time-picker-trigger" aria-label="${campo.etiqueta}: hora" data-hora-selector data-hora-campo="${campo.nombre_campo}" data-hora-parte="hora" data-placeholder="Hora" ${requerido} onclick="alternarMenuHora(this)">
+                        Hora
+                    </button>
+                    <div class="time-picker-menu">
+                        ${crearOpcionesHoraBotones(campo.nombre_campo, "hora", horas)}
+                    </div>
+                </div>
+                <div class="time-separator">:</div>
+                <div class="time-part">
+                    <span>Min</span>
+                    <button type="button" class="time-picker-trigger" aria-label="${campo.etiqueta}: minutos" data-hora-selector data-hora-campo="${campo.nombre_campo}" data-hora-parte="minuto" data-placeholder="Min" ${requerido} onclick="alternarMenuHora(this)">
+                        Min
+                    </button>
+                    <div class="time-picker-menu time-picker-menu-minutes">
+                        ${crearOpcionesHoraBotones(campo.nombre_campo, "minuto", minutos)}
+                    </div>
+                </div>
+                <div class="time-part time-period">
+                    <span>AM/PM</span>
+                    <button type="button" class="time-picker-trigger" aria-label="${campo.etiqueta}: periodo" data-hora-selector data-hora-campo="${campo.nombre_campo}" data-hora-parte="periodo" data-placeholder="AM/PM" ${requerido} onclick="alternarMenuHora(this)">
+                        AM/PM
+                    </button>
+                    <div class="time-picker-menu">
+                        ${crearOpcionesHoraBotones(campo.nombre_campo, "periodo", [
+                            { valor: "a.m.", etiqueta: "AM" },
+                            { valor: "p.m.", etiqueta: "PM" }
+                        ])}
+                    </div>
+                </div>
             </div>
+            <small class="time-error" data-hora-error="${campo.nombre_campo}"></small>
             ${obligatorioTexto}
         </div>
     `;
 }
 
-function crearOpcionesNumericas(inicio, fin, placeholder, opcionesConfig = {}) {
-    let opciones = `<option value="">${placeholder}</option>`;
+function crearValoresNumericos(inicio, fin, opcionesConfig = {}) {
+    const valores = [];
 
     for (let numero = inicio; numero <= fin; numero += 1) {
         const valor = opcionesConfig.rellenar ? String(numero).padStart(2, "0") : String(numero);
-        opciones += `<option value="${valor}">${valor}</option>`;
+        valores.push({ valor, etiqueta: valor });
     }
 
-    return opciones;
+    return valores;
+}
+
+function crearOpcionesHoraBotones(nombreCampo, parte, opciones) {
+    return opciones.map(opcion => `
+        <button type="button" class="time-picker-option" data-hora-opcion data-hora-campo="${nombreCampo}" data-hora-parte="${parte}" data-valor="${opcion.valor}" data-etiqueta="${opcion.etiqueta}" onclick="seleccionarParteHora(this)">
+            ${opcion.etiqueta}
+        </button>
+    `).join("");
+}
+
+function alternarMenuHora(trigger) {
+    const parte = trigger.closest(".time-part");
+    const estabaAbierto = parte.classList.contains("open");
+
+    cerrarMenusHora();
+
+    if (!estabaAbierto) {
+        parte.classList.add("open");
+    }
+}
+
+function cerrarMenusHora() {
+    document.querySelectorAll(".time-part.open").forEach(parte => {
+        parte.classList.remove("open");
+    });
+}
+
+function seleccionarParteHora(opcion) {
+    const form = document.getElementById("formReporte");
+    const nombreCampo = opcion.dataset.horaCampo;
+    const parte = opcion.dataset.horaParte;
+    const trigger = Array.from(form.querySelectorAll("[data-hora-selector]"))
+        .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === parte);
+
+    if (!trigger) {
+        return;
+    }
+
+    aplicarParteHora(trigger, opcion.dataset.valor, opcion.dataset.etiqueta);
+    cerrarMenusHora();
+    actualizarCampoHora(nombreCampo);
+}
+
+function aplicarParteHora(trigger, valor, etiqueta = valor) {
+    trigger.dataset.valor = valor || "";
+    trigger.textContent = etiqueta || trigger.dataset.placeholder;
+    trigger.classList.toggle("has-value", Boolean(valor));
+
+    const parte = trigger.dataset.horaParte;
+    const nombreCampo = trigger.dataset.horaCampo;
+    const opciones = document.querySelectorAll(`[data-hora-opcion][data-hora-campo="${nombreCampo}"][data-hora-parte="${parte}"]`);
+    opciones.forEach(opcion => {
+        opcion.classList.toggle("active", opcion.dataset.valor === valor);
+    });
 }
 
 function actualizarCampoHora(nombreCampo) {
@@ -724,15 +922,129 @@ function actualizarCamposHoraFormulario(form) {
         .forEach(campo => actualizarCampoHora(campo.nombre_campo));
 }
 
+function validarCamposHoraFormulario(form) {
+    const camposHora = formularioActual.campos.filter(campo => campo.tipo_campo === "hora" && campo.obligatorio);
+    let esValido = true;
+
+    camposHora.forEach(campo => {
+        const valor = obtenerCampoFormulario(form, campo.nombre_campo)?.value || "";
+        const error = form.querySelector(`[data-hora-error="${campo.nombre_campo}"]`);
+        const selector = error?.closest(".time-form-group")?.querySelector(".time-selector");
+
+        if (!valor) {
+            esValido = false;
+            if (error) {
+                error.textContent = "Seleccione hora, minutos y AM/PM.";
+            }
+            selector?.classList.add("time-selector-error");
+        } else {
+            if (error) {
+                error.textContent = "";
+            }
+            selector?.classList.remove("time-selector-error");
+        }
+    });
+
+    return esValido;
+}
+
+function actualizarCampoCatalogoOtro(nombreCampo) {
+    const form = document.getElementById("formReporte");
+
+    if (!form) {
+        return;
+    }
+
+    const select = obtenerCampoFormulario(form, nombreCampo);
+    const inputOtro = obtenerCampoFormulario(form, `${nombreCampo}_otro`);
+    const grupo = select?.closest(".catalogo-form-group");
+
+    if (!select || !inputOtro || !grupo) {
+        return;
+    }
+
+    const esOtro = select.value === "__otro__";
+    grupo.classList.toggle("catalogo-otro-activo", esOtro);
+    inputOtro.required = esOtro && select.required;
+
+    if (!esOtro) {
+        inputOtro.value = "";
+        limpiarErrorCatalogo(form, nombreCampo);
+    }
+}
+
+function validarCamposCatalogoFormulario(form) {
+    const camposCatalogo = formularioActual.campos.filter(campo => campo.tipo_campo === "catalogo");
+    let esValido = true;
+
+    camposCatalogo.forEach(campo => {
+        const select = obtenerCampoFormulario(form, campo.nombre_campo);
+        const inputOtro = obtenerCampoFormulario(form, `${campo.nombre_campo}_otro`);
+
+        if (!select || select.value !== "__otro__") {
+            limpiarErrorCatalogo(form, campo.nombre_campo);
+            return;
+        }
+
+        if (!inputOtro?.value.trim()) {
+            esValido = false;
+            mostrarErrorCatalogo(form, campo.nombre_campo, "Escriba el valor para Otro.");
+        } else {
+            limpiarErrorCatalogo(form, campo.nombre_campo);
+        }
+    });
+
+    return esValido;
+}
+
+function obtenerValorCampoReporte(form, formData, campoConfig) {
+    if (campoConfig.tipo_campo === "checkbox") {
+        const campo = obtenerCampoFormulario(form, campoConfig.nombre_campo);
+        return campo.checked ? "Si" : "No";
+    }
+
+    if (campoConfig.tipo_campo === "catalogo") {
+        const valorCatalogo = formData.get(campoConfig.nombre_campo);
+
+        if (valorCatalogo === "__otro__") {
+            return (formData.get(`${campoConfig.nombre_campo}_otro`) || "").trim();
+        }
+
+        return valorCatalogo;
+    }
+
+    return formData.get(campoConfig.nombre_campo);
+}
+
+function mostrarErrorCatalogo(form, nombreCampo, mensaje) {
+    const error = form.querySelector(`[data-catalogo-error="${nombreCampo}"]`);
+    const grupo = error?.closest(".catalogo-form-group");
+
+    if (error) {
+        error.textContent = mensaje;
+    }
+    grupo?.classList.add("catalogo-error-activo");
+}
+
+function limpiarErrorCatalogo(form, nombreCampo) {
+    const error = form.querySelector(`[data-catalogo-error="${nombreCampo}"]`);
+    const grupo = error?.closest(".catalogo-form-group");
+
+    if (error) {
+        error.textContent = "";
+    }
+    grupo?.classList.remove("catalogo-error-activo");
+}
+
 function obtenerCampoFormulario(form, nombreCampo) {
     return Array.from(form.elements).find(elemento => elemento.name === nombreCampo);
 }
 
 function obtenerParteHora(form, nombreCampo, parte) {
-    const selector = Array.from(form.querySelectorAll("[data-hora-campo]"))
+    const selector = Array.from(form.querySelectorAll("[data-hora-selector]"))
         .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === parte);
 
-    return selector?.value || "";
+    return selector?.dataset.valor || "";
 }
 
 function obtenerElementosCatalogo(catalogoOrigen) {
@@ -742,20 +1054,17 @@ function obtenerElementosCatalogo(catalogoOrigen) {
 }
 
 function nombreCatalogo(catalogoOrigen) {
-    const nombres = {
-        guardias: "guardia",
-        lugares: "ubicación",
-        turnos: "turno"
-    };
+    const configuracion = obtenerConfiguracion();
+    const catalogo = configuracion.catalogos?.find(item => item.clave === catalogoOrigen);
 
-    return nombres[catalogoOrigen] || "opción";
+    return catalogo?.nombre?.toLowerCase() || "opción";
 }
 
 function generarVistaPrevia(clave) {
     const form = document.getElementById("formReporte");
     actualizarCamposHoraFormulario(form);
 
-    if (!form.checkValidity()) {
+    if (!validarCamposHoraFormulario(form) || !validarCamposCatalogoFormulario(form) || !form.checkValidity()) {
         form.reportValidity();
         return;
     }
@@ -765,10 +1074,7 @@ function generarVistaPrevia(clave) {
     const valores = {};
 
     formularioActual.campos.forEach(campoConfig => {
-        const campo = obtenerCampoFormulario(form, campoConfig.nombre_campo);
-        let valorFinal = campoConfig.tipo_campo === "checkbox"
-            ? (campo.checked ? "Si" : "No")
-            : formData.get(campoConfig.nombre_campo);
+        const valorFinal = obtenerValorCampoReporte(form, formData, campoConfig);
 
         valores[campoConfig.nombre_campo] = valorFinal || "";
         respuestas.push({
@@ -859,18 +1165,43 @@ function restaurarValoresReporte(clave) {
             return;
         }
 
+        if (campoConfig.tipo_campo === "catalogo") {
+            restaurarCampoCatalogo(form, campoConfig.nombre_campo, valor);
+            return;
+        }
+
         campo.value = valor;
     });
+}
+
+function restaurarCampoCatalogo(form, nombreCampo, valor) {
+    const select = obtenerCampoFormulario(form, nombreCampo);
+    const inputOtro = obtenerCampoFormulario(form, `${nombreCampo}_otro`);
+
+    if (!select) {
+        return;
+    }
+
+    const existeOpcion = Array.from(select.options).some(opcion => opcion.value === valor);
+
+    if (valor && !existeOpcion && inputOtro) {
+        select.value = "__otro__";
+        inputOtro.value = valor;
+    } else {
+        select.value = valor;
+    }
+
+    actualizarCampoCatalogoOtro(nombreCampo);
 }
 
 function restaurarCampoHora(form, nombreCampo, valor) {
     const horaNormalizada = normalizarHoraParaSelector(valor);
     const campo = obtenerCampoFormulario(form, nombreCampo);
-    const selectorHora = Array.from(form.querySelectorAll("[data-hora-campo]"))
+    const selectorHora = Array.from(form.querySelectorAll("[data-hora-selector]"))
         .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === "hora");
-    const selectorMinuto = Array.from(form.querySelectorAll("[data-hora-campo]"))
+    const selectorMinuto = Array.from(form.querySelectorAll("[data-hora-selector]"))
         .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === "minuto");
-    const selectorPeriodo = Array.from(form.querySelectorAll("[data-hora-campo]"))
+    const selectorPeriodo = Array.from(form.querySelectorAll("[data-hora-selector]"))
         .find(elemento => elemento.dataset.horaCampo === nombreCampo && elemento.dataset.horaParte === "periodo");
 
     if (campo) {
@@ -878,15 +1209,18 @@ function restaurarCampoHora(form, nombreCampo, valor) {
     }
 
     if (selectorHora) {
-        selectorHora.value = horaNormalizada.hora;
+        aplicarParteHora(selectorHora, horaNormalizada.hora);
     }
 
     if (selectorMinuto) {
-        selectorMinuto.value = horaNormalizada.minuto;
+        aplicarParteHora(selectorMinuto, horaNormalizada.minuto);
     }
 
     if (selectorPeriodo) {
-        selectorPeriodo.value = horaNormalizada.periodo;
+        const etiquetaPeriodo = horaNormalizada.periodo
+            ? (horaNormalizada.periodo === "a.m." ? "AM" : "PM")
+            : "";
+        aplicarParteHora(selectorPeriodo, horaNormalizada.periodo, etiquetaPeriodo);
     }
 }
 
@@ -915,16 +1249,17 @@ function normalizarHoraParaSelector(valor) {
     const horaNumero = Number(horaVeinticuatro[1]);
     const minuto = horaVeinticuatro[2];
     const periodo = horaNumero >= 12 ? "p.m." : "a.m.";
-    const hora = horaNumero > 12 ? String(horaNumero - 12) : String(horaNumero);
+    const hora = horaNumero === 0 ? "12" : horaNumero > 12 ? String(horaNumero - 12) : String(horaNumero);
 
     return { hora, minuto, periodo, valor: `${hora}:${minuto} ${periodo}` };
 }
 
 function construirMensajeAutomatico(clave, respuestas) {
     const tipoNombre = formularioActual?.tipo?.nombre || clave.toUpperCase();
+    const respuestaHora = respuestas.find(respuesta => respuesta.nombre_campo === "hora");
     let mensaje = `*${tipoNombre}*\n`;
     mensaje += `*Fecha:* ${new Date().toLocaleDateString("es-MX")}\n`;
-    mensaje += `*Hora:* ${new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}\n\n`;
+    mensaje += `*Hora:* ${respuestaHora?.valor || obtenerHoraActual12()}\n\n`;
 
     respuestas.forEach(respuesta => {
         mensaje += `*${respuesta.etiqueta}:* ${respuesta.valor}\n`;
@@ -937,7 +1272,7 @@ function renderizarPlantillaWhatsApp(plantilla, clave, valores) {
     const variables = {
         ...valores,
         fecha: new Date().toLocaleDateString("es-MX"),
-        hora: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+        hora: valores.hora || obtenerHoraActual12(),
         tipo_reporte: formularioActual?.tipo?.nombre || clave.toUpperCase()
     };
     variables.guardia = variables.guardia || variables.guardia_id || "";
@@ -946,6 +1281,14 @@ function renderizarPlantillaWhatsApp(plantilla, clave, valores) {
     return plantilla.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (coincidencia, variable) => {
         return variables[variable] ?? "";
     });
+}
+
+function obtenerHoraActual12() {
+    return new Date().toLocaleTimeString("es-MX", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+    }).toLowerCase();
 }
 
 function abrirWhatsApp() {
@@ -1033,19 +1376,9 @@ function mostrarPanelAdmin(opciones = {}) {
             <small>Tipos de reporte, campos y plantilla de WhatsApp</small>
         </button>
 
-        <button class="admin-card" type="button" onclick="mostrarAdminGuardias()">
-            <span>Guardias</span>
-            <small>Catálogo local para los formularios</small>
-        </button>
-
-        <button class="admin-card" type="button" onclick="mostrarAdminLugares()">
-            <span>Ubicaciones</span>
-            <small>Catálogo local para campos de ubicación</small>
-        </button>
-
-        <button class="admin-card" type="button" onclick="mostrarAdminTurnos()">
-            <span>Turnos</span>
-            <small>Catálogo local para campos de turno</small>
+        <button class="admin-card" type="button" onclick="mostrarAdminCatalogos()">
+            <span>Catálogos</span>
+            <small>Guardias, ubicaciones, turnos y catálogos nuevos</small>
         </button>
 
         <button class="admin-card" type="button" onclick="mostrarHistorialAdmin()">
@@ -1284,11 +1617,8 @@ function renderEditorCampoAdmin(tipo) {
 }
 
 function obtenerCatalogosDisponibles() {
-    return [
-        { clave: "guardias", nombre: "Guardias" },
-        { clave: "lugares", nombre: "Ubicaciones" },
-        { clave: "turnos", nombre: "Turnos" }
-    ];
+    const configuracion = obtenerConfiguracion();
+    return (configuracion.catalogos || []).filter(catalogo => catalogo.activo);
 }
 
 function actualizarVisibilidadOpcionesCampo() {
@@ -1455,6 +1785,213 @@ function insertarVariablePlantilla(variable) {
     textarea.focus();
     textarea.selectionStart = inicio + texto.length;
     textarea.selectionEnd = inicio + texto.length;
+}
+
+function mostrarAdminCatalogos(opciones = {}) {
+    registrarNavegacion("adminCatalogos", {}, opciones);
+    const configuracion = obtenerConfiguracion();
+    const catalogosActivos = obtenerCatalogosDisponibles();
+    adminCatalogoSeleccionado = adminCatalogoSeleccionado && catalogosActivos.some(catalogo => catalogo.clave === adminCatalogoSeleccionado)
+        ? adminCatalogoSeleccionado
+        : catalogosActivos[0]?.clave;
+    renderAdminCatalogos();
+}
+
+function renderAdminCatalogos() {
+    const configuracion = obtenerConfiguracion();
+    const catalogos = obtenerCatalogosDisponibles();
+    const catalogo = catalogos.find(item => item.clave === adminCatalogoSeleccionado) || catalogos[0];
+
+    adminCatalogoSeleccionado = catalogo?.clave || null;
+    cambiarHeader("Catálogos", "Listas disponibles para formularios");
+    appContent.className = "app-content admin-formularios";
+
+    const opcionesCatalogos = catalogos.map(item => `
+        <option value="${item.clave}" ${item.clave === adminCatalogoSeleccionado ? "selected" : ""}>
+            ${item.nombre}
+        </option>
+    `).join("");
+
+    appContent.innerHTML = `
+        <div class="admin-toolbar">
+            <select id="adminCatalogoSelect">${opcionesCatalogos}</select>
+            <button class="btn-secondary-small" type="button" onclick="agregarCatalogoAdmin()">Nuevo catálogo</button>
+        </div>
+
+        ${catalogo ? renderEditorCatalogoAdmin(configuracion, catalogo) : `<div class="info-card">No hay catálogos activos.</div>`}
+
+        <button class="btn-secondary-small" onclick="guardarJsonBaseActualizado()">Descargar JSON base actualizado</button>
+        <button class="btn-volver" onclick="volverLogico()">Volver</button>
+    `;
+
+    document.getElementById("adminCatalogoSelect")?.addEventListener("change", event => {
+        adminCatalogoSeleccionado = event.target.value;
+        renderAdminCatalogos();
+    });
+    document.getElementById("formCatalogoItem")?.addEventListener("submit", guardarItemCatalogoAdmin);
+}
+
+function renderEditorCatalogoAdmin(configuracion, catalogo) {
+    const elementos = (configuracion[catalogo.clave] || []).filter(item => item.activo);
+    const estaEnUso = catalogoEnUso(configuracion, catalogo.clave);
+
+    return `
+        <form id="formCatalogoItem" class="form-card">
+            <div class="form-group">
+                <label>Nuevo elemento en ${catalogo.nombre}</label>
+                <input type="text" name="nombre" required>
+            </div>
+            <button class="btn-main-small" type="submit">Agregar elemento</button>
+        </form>
+
+        <div class="admin-list">
+            ${elementos.map(item => `
+                <div class="admin-field-card">
+                    <div>
+                        <strong>${item.nombre}</strong>
+                        <span>${catalogo.nombre}</span>
+                    </div>
+                    <div class="admin-field-actions">
+                        <button type="button" onclick="desactivarItemCatalogo('${catalogo.clave}', ${item.id})">Quitar</button>
+                    </div>
+                </div>
+            `).join("") || `<div class="info-card">Este catálogo no tiene elementos activos.</div>`}
+        </div>
+
+        <button class="btn-secondary-small ${estaEnUso ? "is-disabled" : ""}" type="button" onclick="eliminarCatalogoAdmin('${catalogo.clave}')">
+            Eliminar catálogo
+        </button>
+        ${estaEnUso ? `<div class="info-card compact-info">Este catálogo está siendo usado por uno o más campos activos.</div>` : ""}
+    `;
+}
+
+function agregarCatalogoAdmin() {
+    const nombre = prompt("Nombre del nuevo catálogo");
+
+    if (!nombre) {
+        return;
+    }
+
+    const configuracion = obtenerConfiguracion();
+    const clave = normalizarClave(nombre);
+
+    if (!clave) {
+        alert("Nombre de catálogo inválido.");
+        return;
+    }
+
+    if ((configuracion.catalogos || []).some(catalogo => catalogo.clave === clave && catalogo.activo !== false)) {
+        alert("Ya existe un catálogo con ese nombre.");
+        return;
+    }
+
+    configuracion.catalogos = configuracion.catalogos || [];
+    configuracion.catalogos.push({
+        clave,
+        nombre: capitalizarEtiqueta(nombre),
+        activo: true,
+        sistema: false
+    });
+    configuracion[clave] = configuracion[clave] || [];
+    guardarConfiguracion(configuracion, { preservarCatalogos: false });
+    adminCatalogoSeleccionado = clave;
+    renderAdminCatalogos();
+}
+
+function guardarItemCatalogoAdmin(event) {
+    event.preventDefault();
+    const configuracion = obtenerConfiguracion();
+    const formData = new FormData(event.target);
+    const clave = adminCatalogoSeleccionado;
+
+    if (!clave || !Array.isArray(configuracion[clave])) {
+        return;
+    }
+
+    configuracion[clave].push({
+        id: siguienteIdItemCatalogo(configuracion[clave]),
+        nombre: formData.get("nombre"),
+        activo: true
+    });
+    guardarConfiguracion(configuracion);
+    renderAdminCatalogos();
+}
+
+function desactivarItemCatalogo(clave, id) {
+    const configuracion = obtenerConfiguracion();
+    const item = (configuracion[clave] || []).find(elemento => elemento.id === id);
+
+    if (!item) {
+        return;
+    }
+
+    item.activo = false;
+    guardarConfiguracion(configuracion);
+    renderAdminCatalogos();
+}
+
+function eliminarCatalogoAdmin(clave) {
+    const configuracion = obtenerConfiguracion();
+    const catalogo = (configuracion.catalogos || []).find(item => item.clave === clave);
+
+    if (!catalogo) {
+        return;
+    }
+
+    if (catalogoEnUso(configuracion, clave)) {
+        alert("No se puede eliminar porque está asignado a campos activos. Primero cambie o quite esos campos.");
+        return;
+    }
+
+    if (!confirm(`Eliminar el catálogo "${catalogo.nombre}"?`)) {
+        return;
+    }
+
+    catalogo.activo = false;
+    (configuracion[clave] || []).forEach(item => {
+        item.activo = false;
+    });
+    guardarConfiguracion(configuracion, { preservarCatalogos: false });
+    adminCatalogoSeleccionado = null;
+    renderAdminCatalogos();
+}
+
+function catalogoEnUso(configuracion, clave) {
+    return configuracion.tiposReportes.some(tipo => tipo.activo && (tipo.campos || []).some(campo => {
+        return campo.activo && campo.tipo_campo === "catalogo" && campo.catalogo_origen === clave;
+    }));
+}
+
+function siguienteIdItemCatalogo(items = []) {
+    return Math.max(0, ...items.map(item => item.id || 0)) + 1;
+}
+
+async function guardarJsonBaseActualizado() {
+    const contenido = JSON.stringify(obtenerConfiguracion(), null, 2);
+
+    if ("showSaveFilePicker" in window) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: "configuracion-reportes-vigilancia.json",
+                types: [{
+                    description: "Archivo JSON",
+                    accept: { "application/json": [".json"] }
+                }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(contenido);
+            await writable.close();
+            alert("JSON base actualizado.");
+            return;
+        } catch (error) {
+            if (error.name === "AbortError") {
+                return;
+            }
+            console.error(error);
+        }
+    }
+
+    exportarConfiguracion();
 }
 
 function mostrarAdminGuardias(opciones = {}) {
@@ -1716,6 +2253,12 @@ if ("serviceWorker" in navigator) {
 
 window.addEventListener("popstate", event => {
     volverLogico();
+});
+
+document.addEventListener("click", event => {
+    if (!event.target.closest(".time-part")) {
+        cerrarMenusHora();
+    }
 });
 
 inicializarAplicacion();
