@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#198754"/>
-  <path d="M144 120h224c18 0 32 14 32 32v208c0 18-14 32-32 32H144c-18 0-32-14-32-32V152c0-18 14-32 32-32z" fill="#fff"/>
-  <path d="M160 184h192v28H160zm0 72h192v28H160zm0 72h128v28H160z" fill="#198754"/>
+  <rect width="512" height="512" rx="112" fill="#f8faf9"/>
+  <circle cx="256" cy="256" r="204" fill="#38b12a"/>
+  <text x="256" y="306" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="148" font-weight="400" letter-spacing="8" fill="#53666c">PT</text>
 </svg>

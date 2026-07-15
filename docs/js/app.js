@@ -2,6 +2,7 @@
 const STORAGE_CONFIG_SOURCE_KEY = "rv_configuracion_archivo";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
+const APP_VERSION = "1.2.0";
 const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD = "admin123";
 
@@ -598,13 +599,21 @@ function mostrarInicio(opciones = {}) {
     cambiarHeader("SEGURIDAD PATRIMONIAL", "Asistente offline de reportes por WhatsApp");
     appContent.className = "app-content home-actions";
     appContent.innerHTML = `
-        <button class="btn-main" onclick="mostrarMenuReportes()">
-            NUEVO REPORTE
-        </button>
+        <div class="home-primary">
+            <div class="home-brand">
+                <img src="img/logo.png" alt="Punto Textil">
+            </div>
+
+            <button class="btn-main" onclick="mostrarMenuReportes()">
+                NUEVO REPORTE
+            </button>
+        </div>
 
         <button class="btn-admin" onclick="mostrarLogin()">
             Administrador
         </button>
+
+        <span class="app-version">v. ${APP_VERSION}</span>
     `;
 }
 

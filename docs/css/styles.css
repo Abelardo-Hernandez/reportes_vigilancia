@@ -78,10 +78,44 @@ body {
 }
 
 .home-actions {
+    position: relative;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 10px 0 24px;
+}
+
+.home-primary {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 34px;
+    padding-top: 2px;
+}
+
+.home-brand {
+    display: flex;
     justify-content: center;
-    gap: 22px;
+    margin: 0;
+}
+
+.home-brand img {
+    width: min(76%, 330px);
+    max-height: 118px;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 18px rgba(15,23,42,.10));
+}
+
+.app-version {
+    position: absolute;
+    right: 2px;
+    bottom: 0;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .2px;
 }
 
 button {
@@ -168,20 +202,22 @@ button {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 22px;
+    justify-content: space-between;
+    gap: 18px;
 }
 
 .btn-main {
-    background: linear-gradient(135deg, #0f5132, #198754);
+    background: linear-gradient(135deg, #0f5132, #198754, #2563eb, #0f766e);
+    background-size: 260% 260%;
     color: white;
     text-decoration: none;
-    border-radius: 24px;
-    padding: 36px 20px;
+    border-radius: 18px;
+    padding: 22px 18px;
     text-align: center;
-    font-size: 26px;
+    font-size: 21px;
     font-weight: 900;
-    box-shadow: 0 12px 25px rgba(0,0,0,.18);
+    box-shadow: 0 9px 20px rgba(15,81,50,.18);
+    animation: mainButtonFlow 7s ease-in-out infinite;
 }
 
 .btn-main:active {
@@ -189,19 +225,36 @@ button {
 }
 
 .btn-admin {
-    background: white;
-    color: #1f2937;
+    align-self: center;
+    min-width: 172px;
+    background: rgba(255,255,255,.88);
+    color: #475569;
     text-decoration: none;
-    border-radius: 18px;
-    padding: 18px;
+    border: 1px solid rgba(148,163,184,.38);
+    border-radius: 999px;
+    padding: 12px 18px;
     text-align: center;
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 700;
-    box-shadow: 0 6px 16px rgba(0,0,0,.10);
+    box-shadow: 0 5px 14px rgba(15,23,42,.08);
 }
 
 .btn-admin:active {
     transform: scale(.97);
+}
+
+@keyframes mainButtonFlow {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
 }
 
 .btn-volver {
