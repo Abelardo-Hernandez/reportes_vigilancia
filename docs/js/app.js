@@ -9,6 +9,8 @@ const ADMIN_PASSWORD = "admin123";
 const appContent = document.getElementById("appContent");
 const tituloVista = document.getElementById("tituloVista");
 const subtituloVista = document.getElementById("subtituloVista");
+const HEADER_INICIO_TITULO = tituloVista.textContent;
+const HEADER_INICIO_SUBTITULO = subtituloVista.textContent;
 
 let vistaPreviaActual = null;
 let formularioActual = null;
@@ -596,7 +598,7 @@ function cambiarHeader(titulo, subtitulo) {
 
 function mostrarInicio(opciones = {}) {
     registrarNavegacion("inicio", {}, opciones);
-    cambiarHeader("SEGURIDAD PATRIMONIAL", "Asistente offline de reportes por WhatsApp");
+    cambiarHeader(HEADER_INICIO_TITULO, HEADER_INICIO_SUBTITULO);
     appContent.className = "app-content home-actions";
     appContent.innerHTML = `
         <div class="home-primary">
