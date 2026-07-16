@@ -173,11 +173,17 @@ function crearFirmaConfiguracion(configuracion) {
 }
 
 async function cargarConfiguracionInicial(opciones = {}) {
+    const controlador = new AbortController();
+    const timeout = setTimeout(() => controlador.abort(), opciones.timeout || 5000);
+
     try {
         const url = opciones.evitarCache
             ? `${CONFIG_INICIAL_URL}?actualizado=${Date.now()}`
             : CONFIG_INICIAL_URL;
-        const respuesta = await fetch(url, { cache: "no-store" });
+        const respuesta = await fetch(url, {
+            cache: opciones.evitarCache ? "reload" : "default",
+            signal: controlador.signal
+        });
 
         if (!respuesta.ok) {
             throw new Error("No fue posible cargar la configuración inicial.");
@@ -196,36 +202,17 @@ async function cargarConfiguracionInicial(opciones = {}) {
             throw error;
         }
         return migrarConfiguracion(crearConfiguracionInicial());
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
 async function asegurarConfiguracionInicial() {
     const rawActual = localStorage.getItem(STORAGE_CONFIG_KEY);
 
-    try {
-        const inicial = await cargarConfiguracionInicial({
-            evitarCache: true,
-            permitirFallback: false
-        });
-        const firmaInicial = crearFirmaConfiguracion(inicial);
-        const firmaGuardada = localStorage.getItem(STORAGE_CONFIG_SOURCE_KEY);
-
-        if (!rawActual || firmaGuardada !== firmaInicial) {
-            guardarConfiguracion(inicial, {
-                preservarCatalogos: false,
-                firmaArchivo: firmaInicial
-            });
-            return;
-        }
-
-        obtenerConfiguracion();
-        return;
-    } catch (error) {
-        console.error(error);
-    }
-
     if (rawActual) {
         obtenerConfiguracion();
+        actualizarConfiguracionDesdeArchivo();
         return;
     }
 
@@ -236,11 +223,38 @@ async function asegurarConfiguracionInicial() {
     });
 }
 
+async function actualizarConfiguracionDesdeArchivo() {
+    try {
+        const inicial = await cargarConfiguracionInicial({
+            evitarCache: true,
+            timeout: 4000,
+            permitirFallback: false
+        });
+        const firmaInicial = crearFirmaConfiguracion(inicial);
+        const firmaGuardada = localStorage.getItem(STORAGE_CONFIG_SOURCE_KEY);
+
+        if (firmaGuardada !== firmaInicial) {
+            guardarConfiguracion(inicial, {
+                preservarCatalogos: false,
+                firmaArchivo: firmaInicial
+            });
+        }
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 async function inicializarAplicacion() {
-    await asegurarConfiguracionInicial();
-    history.replaceState({ vista: "inicio", params: {} }, "");
-    navegacionInicializada = true;
-    mostrarInicio({ desdeHistorial: true });
+    try {
+        await asegurarConfiguracionInicial();
+    } catch (error) {
+        console.error(error);
+        guardarConfiguracion(crearConfiguracionInicial(), { preservarCatalogos: false });
+    } finally {
+        history.replaceState({ vista: "inicio", params: {} }, "");
+        navegacionInicializada = true;
+        mostrarInicio({ desdeHistorial: true });
+    }
 }
 
 function registrarNavegacion(vista, params = {}, opciones = {}) {

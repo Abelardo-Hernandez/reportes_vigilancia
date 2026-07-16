@@ -1,4 +1,4 @@
-const CACHE_NAME = "reportes-vigilancia-v32";
+const CACHE_NAME = "reportes-vigilancia-v33";
 const APP_SHELL = [
     "./",
     "./index.html",
@@ -10,6 +10,15 @@ const APP_SHELL = [
     "./img/logo.png",
     "./icons/icon.svg"
 ];
+
+function fetchConTimeout(request, timeout = 5000) {
+    const controlador = new AbortController();
+    const temporizador = setTimeout(() => controlador.abort(), timeout);
+
+    return fetch(request, { signal: controlador.signal }).finally(() => {
+        clearTimeout(temporizador);
+    });
+}
 
 self.addEventListener("install", event => {
     event.waitUntil(
@@ -39,7 +48,7 @@ self.addEventListener("fetch", event => {
 
     if (esConfiguracion) {
         event.respondWith(
-            fetch(event.request).then(response => {
+            fetchConTimeout(event.request, 4000).then(response => {
                 const copy = response.clone();
                 caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
                 return response;
