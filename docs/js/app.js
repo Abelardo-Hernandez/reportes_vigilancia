@@ -2,7 +2,7 @@
 const STORAGE_CONFIG_SOURCE_KEY = "rv_configuracion_archivo";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.2.1";
 const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD = "a12b3c*";
 
