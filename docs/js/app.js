@@ -4,7 +4,7 @@ const STORAGE_HISTORIAL_KEY = "rv_historial";
 const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
 const APP_VERSION = "1.2.0";
 const ADMIN_USUARIO = "admin";
-const ADMIN_PASSWORD = "admin123";
+const ADMIN_PASSWORD = "a1b2c3*";
 
 const appContent = document.getElementById("appContent");
 const tituloVista = document.getElementById("tituloVista");
