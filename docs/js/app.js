@@ -4,7 +4,7 @@ const STORAGE_HISTORIAL_KEY = "rv_historial";
 const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
 const APP_VERSION = "1.2.1";
 const ADMIN_USUARIO = "admin";
-const ADMIN_PASSWORD = "a12b3c*";
+const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
 
 const appContent = document.getElementById("appContent");
 const tituloVista = document.getElementById("tituloVista");
@@ -1348,13 +1348,14 @@ function mostrarLogin(opciones = {}) {
     document.getElementById("formLoginAdmin").addEventListener("submit", iniciarSesionAdmin);
 }
 
-function iniciarSesionAdmin(event) {
+async function iniciarSesionAdmin(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     const usuario = formData.get("usuario");
     const password = formData.get("password");
+    const passwordHash = await generarHashSha256(password);
 
-    if (usuario !== ADMIN_USUARIO || password !== ADMIN_PASSWORD) {
+    if (usuario !== ADMIN_USUARIO || passwordHash !== ADMIN_PASSWORD_HASH) {
         mostrarMensajeLogin("Usuario o contraseña incorrectos.");
         return;
     }
@@ -1362,6 +1363,14 @@ function iniciarSesionAdmin(event) {
     adminActual = { usuario: ADMIN_USUARIO, nombre: "Administrador" };
     localStorage.setItem("rv_admin_sesion", "activa");
     mostrarPanelAdmin();
+}
+
+async function generarHashSha256(texto) {
+    const bytes = new TextEncoder().encode(texto);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(hashBuffer))
+        .map(byte => byte.toString(16).padStart(2, "0"))
+        .join("");
 }
 
 function mostrarMensajeLogin(mensaje) {
