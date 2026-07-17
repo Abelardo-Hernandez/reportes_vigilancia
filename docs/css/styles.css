@@ -58,18 +58,22 @@ body {
 .menu-grid {
     flex: 1;
     display: grid;
-    grid-template-rows: repeat(6, 1fr) auto;
+    grid-auto-rows: auto;
+    align-content: start;
     gap: 10px;
+    overflow-y: auto;
+    padding-bottom: 4px;
 }
 
 .menu-card {
     width: 100%;
+    min-height: 78px;
     display: flex;
     align-items: center;
     gap: 18px;
     background: white;
     border-radius: 18px;
-    padding: 0 20px;
+    padding: 12px 20px;
     text-decoration: none;
     color: #1f2937;
     box-shadow: 0 6px 16px rgba(0,0,0,.10);
@@ -187,6 +191,10 @@ button {
     .emoji {
         font-size: 32px;
         width: 42px;
+    }
+
+    .menu-card {
+        min-height: 68px;
     }
 
     .menu-card span {
