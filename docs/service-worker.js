@@ -1,4 +1,4 @@
-const CACHE_NAME = "reportes-vigilancia-v34";
+const CACHE_NAME = "reportes-vigilancia-v35";
 const APP_SHELL = [
     "./",
     "./index.html",
@@ -8,6 +8,9 @@ const APP_SHELL = [
     "./js/app.js",
     "./js/background.js",
     "./img/logo.png",
+    "./icons/icon-180.png",
+    "./icons/icon-192.png",
+    "./icons/icon-512.png",
     "./icons/icon.svg"
 ];
 

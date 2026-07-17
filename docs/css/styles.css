@@ -23,10 +23,11 @@ body.app-ready .app-container {
 .app-container {
     position: relative;
     z-index: 1;
+    height: 100vh;
     height: 100dvh;
     max-width: 480px;
     margin: auto;
-    padding: 12px;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
 }
