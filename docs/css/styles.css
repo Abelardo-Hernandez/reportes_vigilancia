@@ -9,6 +9,17 @@ body {
     color: #1f2937;
 }
 
+body:not(.app-ready) .app-container {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+body.app-ready .app-container {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity .38s ease, transform .38s ease;
+}
+
 .app-container {
     position: relative;
     z-index: 1;
@@ -25,6 +36,10 @@ body {
     min-height: 0;
 }
 
+.app-content.view-enter {
+    animation: viewEnter .28s ease both;
+}
+
 .app-header {
     flex: 0 0 auto;
     background: linear-gradient(135deg, #0f5132, #198754);
@@ -34,6 +49,10 @@ body {
     margin-bottom: 12px;
     text-align: center;
     box-shadow: 0 8px 20px rgba(0,0,0,.18);
+}
+
+.app-header.header-enter {
+    animation: headerEnter .26s ease both;
 }
 
 .app-header h1 {
@@ -78,7 +97,7 @@ body {
     color: #1f2937;
     box-shadow: 0 6px 16px rgba(0,0,0,.10);
     border-left: 10px solid #198754;
-    transition: .15s ease;
+    transition: transform .15s ease, box-shadow .2s ease, background-color .2s ease;
 }
 
 .home-actions {
@@ -251,6 +270,30 @@ button {
     transform: scale(.97);
 }
 
+@keyframes viewEnter {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes headerEnter {
+    from {
+        opacity: .75;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 @keyframes mainButtonFlow {
     0% {
         background-position: 0% 50%;
@@ -262,6 +305,23 @@ button {
 
     100% {
         background-position: 0% 50%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+    }
+
+    body:not(.app-ready) .app-container,
+    body.app-ready .app-container {
+        opacity: 1;
+        transform: none;
     }
 }
 

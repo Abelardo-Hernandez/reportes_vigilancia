@@ -7,6 +7,7 @@ const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
 
 const appContent = document.getElementById("appContent");
+const appHeader = document.querySelector(".app-header");
 const tituloVista = document.getElementById("tituloVista");
 const subtituloVista = document.getElementById("subtituloVista");
 const HEADER_INICIO_TITULO = tituloVista.textContent;
@@ -254,12 +255,14 @@ async function inicializarAplicacion() {
         history.replaceState({ vista: "inicio", params: {} }, "");
         navegacionInicializada = true;
         mostrarInicio({ desdeHistorial: true });
+        marcarAplicacionLista();
     }
 }
 
 function registrarNavegacion(vista, params = {}, opciones = {}) {
     vistaActual = vista;
     paramsVistaActual = params;
+    programarAnimacionVista();
 
     if (opciones.desdeHistorial || !navegacionInicializada) {
         return;
@@ -605,9 +608,45 @@ function actualizarFechaHora() {
 actualizarFechaHora();
 setInterval(actualizarFechaHora, 1000);
 
+const tiemposAnimacion = new WeakMap();
+let animacionVistaProgramada = null;
+
+function prefiereMovimientoReducido() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function animarElemento(elemento, clase, duracion = 340) {
+    if (!elemento || prefiereMovimientoReducido()) {
+        return;
+    }
+
+    clearTimeout(tiemposAnimacion.get(elemento));
+    elemento.classList.remove(clase);
+    void elemento.offsetWidth;
+    elemento.classList.add(clase);
+
+    tiemposAnimacion.set(elemento, setTimeout(() => {
+        elemento.classList.remove(clase);
+    }, duracion));
+}
+
+function programarAnimacionVista() {
+    clearTimeout(animacionVistaProgramada);
+    animacionVistaProgramada = setTimeout(() => {
+        animarElemento(appContent, "view-enter");
+    }, 0);
+}
+
+function marcarAplicacionLista() {
+    requestAnimationFrame(() => {
+        document.body.classList.add("app-ready");
+    });
+}
+
 function cambiarHeader(titulo, subtitulo) {
     tituloVista.textContent = titulo;
     subtituloVista.textContent = subtitulo;
+    animarElemento(appHeader, "header-enter", 300);
 }
 
 function mostrarInicio(opciones = {}) {
@@ -2296,4 +2335,3 @@ document.addEventListener("click", event => {
 });
 
 inicializarAplicacion();
-
