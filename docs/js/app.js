@@ -1,5 +1,4 @@
 ﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
-const STORAGE_CONFIG_SOURCE_KEY = "rv_configuracion_archivo";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
 const APP_VERSION = "1.2.1";
@@ -46,31 +45,8 @@ function crearConfiguracionInicial() {
     };
 }
 
-function crearCampo(id, etiqueta, nombreCampo, tipoCampo, opciones, catalogoOrigen, obligatorio, orden) {
-    return {
-        id,
-        etiqueta,
-        nombre_campo: nombreCampo,
-        tipo_campo: tipoCampo,
-        opciones,
-        catalogo_origen: catalogoOrigen,
-        obligatorio,
-        orden,
-        activo: true
-    };
-}
-
 function plantillaBase(nombre, variables) {
-    const etiquetas = {
-        guardia: "Guardia",
-        turno: "Turno",
-        observaciones: "Observaciones",
-        ubicacion: "Ubicación",
-        descripcion: "Descripción",
-        zona: "Zona",
-        resultado: "Resultado"
-    };
-    const lineas = variables.map(variable => `*${etiquetas[variable] || variable}:* {{${variable}}}`).join("\n");
+    const lineas = variables.map(variable => `*${capitalizarEtiqueta(variable.replace(/_/g, " "))}:* {{${variable}}}`).join("\n");
 
     return `*${nombre}*
 *Fecha:* {{fecha}}
@@ -94,14 +70,6 @@ function obtenerConfiguracion() {
     return migrada;
 }
 
-function crearFirmaConfiguracion(configuracion) {
-    return JSON.stringify(configuracion);
-}
-
-async function cargarConfiguracionInicial(opciones = {}) {
-    return migrarConfiguracion(crearConfiguracionInicial());
-}
-
 async function asegurarConfiguracionInicial() {
     const rawActual = localStorage.getItem(STORAGE_CONFIG_KEY);
 
@@ -110,14 +78,12 @@ async function asegurarConfiguracionInicial() {
         return;
     }
 
-    const inicial = await cargarConfiguracionInicial();
-    guardarConfiguracion(inicial, {
-        preservarCatalogos: false,
-        firmaArchivo: crearFirmaConfiguracion(inicial)
-    });
+    guardarConfiguracion(crearConfiguracionInicial(), { preservarCatalogos: false });
 }
 
 async function inicializarAplicacion() {
+    const configuracionExistia = Boolean(localStorage.getItem(STORAGE_CONFIG_KEY));
+
     try {
         await asegurarConfiguracionInicial();
     } catch (error) {
@@ -126,7 +92,8 @@ async function inicializarAplicacion() {
     } finally {
         history.replaceState({ vista: "inicio", params: {} }, "");
         navegacionInicializada = true;
-        if (localStorage.getItem(STORAGE_ONBOARDING_KEY) === "si") {
+        if (configuracionExistia || localStorage.getItem(STORAGE_ONBOARDING_KEY) === "si") {
+            localStorage.setItem(STORAGE_ONBOARDING_KEY, "si");
             mostrarInicio({ desdeHistorial: true });
         } else {
             mostrarPresentacionInicial({ desdeHistorial: true });
@@ -260,58 +227,16 @@ function sesionAdminActiva() {
 
 function migrarConfiguracion(configuracion) {
     configuracion.guardias = configuracion.guardias || [];
-    configuracion.guardias.forEach(guardia => {
-        delete guardia.turno;
-    });
     configuracion.lugares = configuracion.lugares || [];
     configuracion.turnos = configuracion.turnos || [];
     configuracion.tiposReportes = configuracion.tiposReportes || [];
 
     configuracion.tiposReportes.forEach(tipo => {
         tipo.activo = tipo.activo !== false;
-        if (tipo.nombre === "RONDIN") {
-            tipo.nombre = "RONDÍN";
-        }
         tipo.campos = tipo.campos || [];
-        asegurarCampoHoraManual(configuracion, tipo);
-
         tipo.campos.forEach(campo => {
             campo.activo = campo.activo !== false;
-            campo.etiqueta = capitalizarEtiqueta(campo.etiqueta);
-
-            if (campo.nombre_campo === "turno") {
-                campo.tipo_campo = "catalogo";
-                campo.catalogo_origen = "turnos";
-                campo.opciones = "";
-            }
-
-            if (campo.nombre_campo === "guardia_id") {
-                campo.nombre_campo = "guardia";
-            }
-
-            if (campo.nombre_campo === "lugar") {
-                campo.etiqueta = "Ubicación";
-                campo.nombre_campo = "ubicacion";
-                campo.tipo_campo = "catalogo";
-                campo.catalogo_origen = "lugares";
-                campo.opciones = "";
-            }
         });
-
-        if (tipo.plantilla) {
-            tipo.plantilla = tipo.plantilla
-                .replace(/\{\{guardia_id\}\}/g, "{{guardia}}")
-                .replace(/\*guardia_id:\*/g, "*Guardia:*");
-            tipo.plantilla = tipo.plantilla.replace(
-                /(?:\*REPORTE DE VIGILANCIA\*\n)?Tipo: ([^\n]+)\nFecha: \{\{fecha\}\}\nHora: \{\{hora\}\}/,
-                "*$1*\n*Fecha:* {{fecha}}\n*Hora:* {{hora}}"
-            );
-            tipo.plantilla = tipo.plantilla
-                .replace(/\{\{lugar\}\}/g, "{{ubicacion}}")
-                .replace(/\*Lugar:\*/g, "*Ubicación:*");
-            tipo.plantilla = tipo.plantilla.replace(/\bRONDIN\b/g, "RONDÍN");
-            tipo.plantilla = normalizarEtiquetasPlantilla(tipo.plantilla);
-        }
     });
 
     asegurarCatalogosConfiguracion(configuracion);
@@ -320,14 +245,7 @@ function migrarConfiguracion(configuracion) {
 }
 
 function asegurarCatalogosConfiguracion(configuracion) {
-    const catalogosBase = [
-        { clave: "guardias", nombre: "Guardias", activo: true, sistema: true },
-        { clave: "lugares", nombre: "Ubicaciones", activo: true, sistema: true },
-        { clave: "turnos", nombre: "Turnos", activo: true, sistema: true }
-    ];
     const mapa = new Map();
-
-    catalogosBase.forEach(catalogo => mapa.set(catalogo.clave, catalogo));
 
     (configuracion.catalogos || []).forEach(catalogo => {
         if (!catalogo?.clave) {
@@ -362,40 +280,6 @@ function asegurarCatalogosConfiguracion(configuracion) {
     });
 }
 
-function asegurarCampoHoraManual(configuracion, tipo) {
-    if (tipo.clave === "rondin") {
-        return;
-    }
-
-    const usaHoraEnPlantilla = (tipo.plantilla || "").includes("{{hora}}");
-    const campoHora = tipo.campos.find(campo => campo.nombre_campo === "hora");
-
-    if (!usaHoraEnPlantilla) {
-        return;
-    }
-
-    if (campoHora) {
-        campoHora.etiqueta = campoHora.etiqueta || "Hora";
-        campoHora.tipo_campo = "hora";
-        campoHora.obligatorio = true;
-        campoHora.activo = true;
-        campoHora.orden = Number(campoHora.orden || 0);
-        return;
-    }
-
-    tipo.campos.push({
-        id: siguienteIdCampo(configuracion),
-        etiqueta: "Hora",
-        nombre_campo: "hora",
-        tipo_campo: "hora",
-        opciones: "",
-        catalogo_origen: "",
-        obligatorio: true,
-        orden: 0,
-        activo: true
-    });
-}
-
 function guardarConfiguracion(configuracion, opciones = {}) {
     const debePreservarCatalogos = opciones.preservarCatalogos !== false;
     const rawActual = localStorage.getItem(STORAGE_CONFIG_KEY);
@@ -422,10 +306,6 @@ function guardarConfiguracion(configuracion, opciones = {}) {
     }
 
     localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(configuracion));
-
-    if (opciones.firmaArchivo) {
-        localStorage.setItem(STORAGE_CONFIG_SOURCE_KEY, opciones.firmaArchivo);
-    }
 }
 
 function fusionarCatalogo(actual = [], siguiente = []) {
@@ -535,15 +415,15 @@ function mostrarPresentacionInicial(opciones = {}) {
     appContent.className = "app-content onboarding-content";
     appContent.innerHTML = `
         <section class="onboarding-card">
-            <div class="onboarding-mark">WA</div>
-            <h2>Reportes mas rapidos</h2>
+            <div class="onboarding-mark">¡HOLA!</div>
+            <h2>Reportes más rápidos</h2>
             <p>
-                Esta PWA ayuda a agilizar los reportes por WhatsApp: organiza los datos,
+                Esta aplicación te ayudará a agilizar los reportes por WhatsApp: organiza los datos,
                 arma el mensaje y lo deja listo para enviar.
             </p>
             <p>
-                Puede importar una configuracion existente para cargar sus formularios,
-                catalogos y plantillas en este dispositivo.
+                Puede importar una configuración existente para cargar sus formularios,
+                catálogos y plantillas en este dispositivo.
             </p>
             <button class="btn-main-small" type="button" onclick="mostrarOpcionesImportacionInicial()">
                 Aceptar
@@ -558,13 +438,13 @@ function mostrarOpcionesImportacionInicial(opciones = {}) {
     appContent.className = "app-content onboarding-content";
     appContent.innerHTML = `
         <section class="onboarding-card">
-            <h2>Importar configuracion</h2>
+            <h2>Importar configuración</h2>
             <p>
-                Si ya tiene un archivo JSON de configuracion, importelo ahora para activar
+                Si ya tiene un archivo JSON de configuración, importelo ahora para activar
                 los formularios de reporte.
             </p>
             <label class="btn-main-small file-button">
-                Importar configuracion
+                Importar configuración
                 <input type="file" accept="application/json" onchange="importarConfiguracion(event, { destino: 'inicio' })">
             </label>
             <button class="btn-secondary-small" type="button" onclick="continuarSinImportar()">
@@ -595,9 +475,16 @@ function mostrarInicio(opciones = {}) {
             </button>
         </div>
 
-        <button class="btn-admin" onclick="mostrarLogin()">
-            Administrador
-        </button>
+        <div class="home-secondary">
+            <label class="btn-admin file-button">
+                Importar
+                <input type="file" accept="application/json" onchange="importarConfiguracion(event, { destino: 'inicio' })">
+            </label>
+
+            <button class="btn-admin" onclick="mostrarLogin()">
+                Administrador
+            </button>
+        </div>
 
         <span class="app-version">v. ${APP_VERSION}</span>
     `;
@@ -618,7 +505,7 @@ function mostrarMenuReportes(opciones = {}) {
         appContent.innerHTML = `
             <div class="empty-state">
                 <strong>Sin formularios</strong>
-                <span>Importe una configuracion para habilitar los tipos de reporte.</span>
+                <span>Importe una configuración para habilitar los tipos de reporte.</span>
             </div>
         `;
     }
@@ -1279,8 +1166,6 @@ function renderizarPlantillaWhatsApp(plantilla, clave, valores) {
         hora: valores.hora || obtenerHoraActual12(),
         tipo_reporte: formularioActual?.tipo?.nombre || clave.toUpperCase()
     };
-    variables.guardia = variables.guardia || variables.guardia_id || "";
-    variables.guardia_id = variables.guardia;
 
     return plantilla.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (coincidencia, variable) => {
         return variables[variable] ?? "";
@@ -1391,7 +1276,7 @@ function mostrarPanelAdmin(opciones = {}) {
 
         <button class="admin-card" type="button" onclick="mostrarAdminCatalogos()">
             <span>Catálogos</span>
-            <small>Guardias, ubicaciones, turnos y catálogos nuevos</small>
+            <small>Listas disponibles para los formularios importados</small>
         </button>
 
         <button class="admin-card" type="button" onclick="mostrarHistorialAdmin()">
@@ -2007,162 +1892,6 @@ async function guardarJsonBaseActualizado() {
     exportarConfiguracion();
 }
 
-function mostrarAdminGuardias(opciones = {}) {
-    registrarNavegacion("adminGuardias", {}, opciones);
-    const configuracion = obtenerConfiguracion();
-    cambiarHeader("Guardias", "Catálogo local");
-    appContent.className = "app-content admin-formularios";
-    appContent.innerHTML = `
-        <form id="formGuardia" class="form-card">
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text" name="nombre" required>
-            </div>
-            <button class="btn-main-small" type="submit">Agregar guardia</button>
-        </form>
-        <div class="admin-list">
-            ${configuracion.guardias.filter(guardia => guardia.activo).map(guardia => `
-                <div class="admin-field-card">
-                    <div>
-                        <strong>${guardia.nombre}</strong>
-                        <span>Guardia activo</span>
-                    </div>
-                    <div class="admin-field-actions">
-                        <button type="button" onclick="desactivarGuardia(${guardia.id})">Quitar</button>
-                    </div>
-                </div>
-            `).join("") || `<div class="info-card">No hay guardias registrados.</div>`}
-        </div>
-        <button class="btn-volver" onclick="volverLogico()">Volver</button>
-    `;
-    document.getElementById("formGuardia").addEventListener("submit", guardarGuardiaAdmin);
-}
-
-function guardarGuardiaAdmin(event) {
-    event.preventDefault();
-    const configuracion = obtenerConfiguracion();
-    const formData = new FormData(event.target);
-    configuracion.guardias.push({
-        id: Math.max(0, ...configuracion.guardias.map(guardia => guardia.id || 0)) + 1,
-        nombre: formData.get("nombre"),
-        activo: true
-    });
-    guardarConfiguracion(configuracion);
-    mostrarAdminGuardias();
-}
-
-function desactivarGuardia(id) {
-    const configuracion = obtenerConfiguracion();
-    const guardia = configuracion.guardias.find(item => item.id === id);
-    guardia.activo = false;
-    guardarConfiguracion(configuracion);
-    mostrarAdminGuardias();
-}
-
-function mostrarAdminLugares(opciones = {}) {
-    registrarNavegacion("adminLugares", {}, opciones);
-    const configuracion = obtenerConfiguracion();
-    cambiarHeader("Ubicaciones", "Catálogo local");
-    appContent.className = "app-content admin-formularios";
-    appContent.innerHTML = `
-        <form id="formLugar" class="form-card">
-            <div class="form-group">
-                <label>Nombre de la ubicación</label>
-                <input type="text" name="nombre" required>
-            </div>
-            <button class="btn-main-small" type="submit">Agregar ubicación</button>
-        </form>
-        <div class="admin-list">
-            ${configuracion.lugares.filter(lugar => lugar.activo).map(lugar => `
-                <div class="admin-field-card">
-                    <div>
-                        <strong>${lugar.nombre}</strong>
-                        <span>Disponible en campos tipo ubicación</span>
-                    </div>
-                    <div class="admin-field-actions">
-                        <button type="button" onclick="desactivarLugar(${lugar.id})">Quitar</button>
-                    </div>
-                </div>
-            `).join("") || `<div class="info-card">No hay ubicaciones registradas.</div>`}
-        </div>
-        <button class="btn-volver" onclick="volverLogico()">Volver</button>
-    `;
-    document.getElementById("formLugar").addEventListener("submit", guardarLugarAdmin);
-}
-
-function guardarLugarAdmin(event) {
-    event.preventDefault();
-    const configuracion = obtenerConfiguracion();
-    const formData = new FormData(event.target);
-    configuracion.lugares.push({
-        id: Math.max(0, ...configuracion.lugares.map(lugar => lugar.id || 0)) + 1,
-        nombre: formData.get("nombre"),
-        activo: true
-    });
-    guardarConfiguracion(configuracion);
-    mostrarAdminLugares();
-}
-
-function desactivarLugar(id) {
-    const configuracion = obtenerConfiguracion();
-    const lugar = configuracion.lugares.find(item => item.id === id);
-    lugar.activo = false;
-    guardarConfiguracion(configuracion);
-    mostrarAdminLugares();
-}
-
-function mostrarAdminTurnos(opciones = {}) {
-    registrarNavegacion("adminTurnos", {}, opciones);
-    const configuracion = obtenerConfiguracion();
-    cambiarHeader("Turnos", "Catálogo local");
-    appContent.className = "app-content admin-formularios";
-    appContent.innerHTML = `
-        <form id="formTurno" class="form-card">
-            <div class="form-group">
-                <label>Nombre del turno</label>
-                <input type="text" name="nombre" required>
-            </div>
-            <button class="btn-main-small" type="submit">Agregar turno</button>
-        </form>
-        <div class="admin-list">
-            ${configuracion.turnos.filter(turno => turno.activo).map(turno => `
-                <div class="admin-field-card">
-                    <div>
-                        <strong>${turno.nombre}</strong>
-                        <span>Disponible en campos tipo turno</span>
-                    </div>
-                    <div class="admin-field-actions">
-                        <button type="button" onclick="desactivarTurno(${turno.id})">Quitar</button>
-                    </div>
-                </div>
-            `).join("") || `<div class="info-card">No hay turnos registrados.</div>`}
-        </div>
-        <button class="btn-volver" onclick="volverLogico()">Volver</button>
-    `;
-    document.getElementById("formTurno").addEventListener("submit", guardarTurnoAdmin);
-}
-
-function guardarTurnoAdmin(event) {
-    event.preventDefault();
-    const configuracion = obtenerConfiguracion();
-    const formData = new FormData(event.target);
-    configuracion.turnos.push({
-        id: Math.max(0, ...configuracion.turnos.map(turno => turno.id || 0)) + 1,
-        nombre: formData.get("nombre"),
-        activo: true
-    });
-    guardarConfiguracion(configuracion);
-    mostrarAdminTurnos();
-}
-
-function desactivarTurno(id) {
-    const configuracion = obtenerConfiguracion();
-    const turno = configuracion.turnos.find(item => item.id === id);
-    turno.activo = false;
-    guardarConfiguracion(configuracion);
-    mostrarAdminTurnos();
-}
-
 function mostrarHistorialAdmin(opciones = {}) {
     registrarNavegacion("adminHistorial", {}, opciones);
     const historial = obtenerHistorial();
@@ -2202,9 +1931,8 @@ function mostrarAdminDatos(opciones = {}) {
         <button class="btn-main-small" onclick="exportarConfiguracion()">Exportar configuración</button>
         <label class="btn-secondary-small file-button">
             Importar configuración
-            <input type="file" accept="application/json" onchange="importarConfiguracion(event)">
+            <input type="file" accept="application/json" onchange="importarConfiguracion(event, { destino: 'adminDatos' })">
         </label>
-        <button class="btn-secondary-small" onclick="restaurarConfiguracionInicial()">Restaurar inicial</button>
         <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 }
@@ -2238,6 +1966,8 @@ function importarConfiguracion(event, opciones = {}) {
             alert("Configuración importada.");
             if (opciones.destino === "inicio") {
                 mostrarInicio();
+            } else if (opciones.destino === "adminDatos") {
+                mostrarAdminDatos();
             } else {
                 mostrarPanelAdmin();
             }
@@ -2247,14 +1977,6 @@ function importarConfiguracion(event, opciones = {}) {
         }
     };
     reader.readAsText(file);
-}
-
-async function restaurarConfiguracionInicial() {
-    if (confirm("Restaurar la configuración inicial?")) {
-        const configuracion = await cargarConfiguracionInicial();
-        guardarConfiguracion(configuracion, { preservarCatalogos: false });
-        mostrarPanelAdmin();
-    }
 }
 
 function cerrarSesionAdmin() {

@@ -164,31 +164,6 @@ button {
     letter-spacing: .4px;
 }
 
-/* COLORES POR FUNCIÓN */
-.asistencia {
-    border-left-color: #2563eb;
-}
-
-.novedad {
-    border-left-color: #16a34a;
-}
-
-.rondin {
-    border-left-color: #f59e0b;
-}
-
-.incidencia {
-    border-left-color: #dc2626;
-}
-
-.transporte-entrada {
-    border-left-color: #7c3aed;
-}
-
-.transporte-salida {
-    border-left-color: #111827;
-}
-
 /* CELULARES MUY PEQUEÑOS */
 @media (max-height: 650px) {
     .app-header {
@@ -222,16 +197,19 @@ button {
     }
 }
 
-.home-container {
-    justify-content: space-between;
-}
-
 .home-actions {
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     gap: 18px;
+}
+
+.home-secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
 }
 
 .btn-main {
