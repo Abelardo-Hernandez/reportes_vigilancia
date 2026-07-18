@@ -1,7 +1,7 @@
 ﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
-const APP_VERSION = "1.2.1";
+const APP_VERSION = "1.2.2";
 const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
 
@@ -1577,7 +1577,7 @@ function obtenerTarjetaDespuesDePosicion(lista, posicionY, tarjetaActiva) {
 }
 
 function obtenerOrdenCamposDesdeDOM() {
-    return Array.from(document.querySelectorAll("#adminCamposList .admin-field-draggable[data-campo-id]"))
+    return Array.from(document.querySelectorAll("#adminCamposList [data-campo-id]"))
         .map(elemento => Number(elemento.dataset.campoId));
 }
 
@@ -1589,21 +1589,11 @@ function guardarOrdenCamposAdmin(ordenIds) {
         return;
     }
 
-    const camposActivosOrdenados = tipo.campos
-        .filter(campo => campo.activo)
-        .sort((a, b) => a.orden - b.orden);
-    const ordenesFijas = new Set(camposActivosOrdenados
-        .filter(esCampoHoraFija)
-        .map(campo => Number(campo.orden) || 0));
-    const espaciosLibres = camposActivosOrdenados
-        .map((campo, index) => Number(campo.orden) || index + 1)
-        .filter(orden => !ordenesFijas.has(orden));
-
     ordenIds.forEach((campoId, index) => {
         const campo = tipo.campos.find(item => item.id === campoId);
 
         if (campo) {
-            campo.orden = espaciosLibres[index] || index + 1;
+            campo.orden = index + 1;
         }
     });
 
