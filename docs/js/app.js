@@ -415,7 +415,7 @@ function mostrarPresentacionInicial(opciones = {}) {
     appContent.className = "app-content onboarding-content";
     appContent.innerHTML = `
         <section class="onboarding-card">
-            <div class="onboarding-mark">¡HOLA!</div>
+            <div class="onboarding-mark">HOLA</div>
             <h2>Reportes más rápidos</h2>
             <p>
                 Esta aplicación te ayudará a agilizar los reportes por WhatsApp: organiza los datos,
