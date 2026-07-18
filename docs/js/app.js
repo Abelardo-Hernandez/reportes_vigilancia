@@ -1386,7 +1386,11 @@ function renderListaCamposAdmin(tipo) {
                 <div class="admin-field-card ${esCampoHoraFija(campo) ? "admin-field-fixed" : "admin-field-draggable"}" data-campo-id="${campo.id}">
                     ${esCampoHoraFija(campo)
                         ? `<span class="drag-handle drag-handle-fixed" aria-label="Hora fija" title="Hora fija">H</span>`
-                        : `<span class="drag-handle" role="button" aria-label="Arrastrar campo" title="Arrastrar campo"></span>`}
+                        : `<span class="drag-handle" role="button" aria-label="Arrastrar campo" title="Arrastrar campo">
+                            <i></i>
+                            <i></i>
+                            <i></i>
+                        </span>`}
                     <div class="admin-field-main">
                         <strong>${campo.orden}. ${campo.etiqueta}</strong>
                         <span>${campo.tipo_campo} - {{${campo.nombre_campo}}}</span>
