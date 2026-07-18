@@ -841,16 +841,16 @@ body {
     touch-action: auto;
 }
 
-.admin-field-card strong,
-.admin-field-card span {
+.admin-field-main strong,
+.admin-field-main span {
     display: block;
 }
 
-.admin-field-card strong {
+.admin-field-main strong {
     font-size: 14px;
 }
 
-.admin-field-card span {
+.admin-field-main span {
     margin-top: 3px;
     color: #4b5563;
     font-size: 12px;
