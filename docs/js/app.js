@@ -1340,6 +1340,7 @@ function renderAdminFormularios() {
     document.getElementById("formAdminPlantilla")?.addEventListener("submit", guardarPlantillaAdmin);
     document.getElementById("formAdminCampo")?.addEventListener("submit", guardarCampoAdmin);
     document.querySelector("#formAdminCampo select[name='tipo_campo']")?.addEventListener("change", actualizarVisibilidadOpcionesCampo);
+    inicializarArrastreCamposAdmin();
     actualizarVisibilidadOpcionesCampo();
 }
 
@@ -1380,10 +1381,11 @@ function renderListaCamposAdmin(tipo) {
     }
 
     return `
-        <div class="admin-list">
+        <div class="admin-list" id="adminCamposList">
             ${campos.map(campo => `
-                <div class="admin-field-card">
-                    <div>
+                <div class="admin-field-card admin-field-draggable" data-campo-id="${campo.id}">
+                    <span class="drag-handle" role="button" aria-label="Arrastrar campo" title="Arrastrar campo">☰</span>
+                    <div class="admin-field-main">
                         <strong>${campo.orden}. ${campo.etiqueta}</strong>
                         <span>${campo.tipo_campo} - {{${campo.nombre_campo}}}</span>
                     </div>
@@ -1398,7 +1400,15 @@ function renderListaCamposAdmin(tipo) {
 }
 
 function renderEditorPlantillaAdmin(tipo) {
-    const variables = ["fecha", "hora", "tipo_reporte", ...tipo.campos.filter(campo => campo.activo).map(campo => campo.nombre_campo)];
+    const variables = [
+        "fecha",
+        "hora",
+        "tipo_reporte",
+        ...tipo.campos
+            .filter(campo => campo.activo)
+            .sort((a, b) => a.orden - b.orden)
+            .map(campo => campo.nombre_campo)
+    ];
 
     return `
         <form id="formAdminPlantilla" class="form-card">
@@ -1421,32 +1431,157 @@ function sincronizarPlantillaConCampos(tipo) {
     const camposActivos = tipo.campos
         .filter(campo => campo.activo)
         .sort((a, b) => a.orden - b.orden);
+    const nombresCampos = new Set(tipo.campos.map(campo => campo.nombre_campo));
     const nombresActivos = new Set(camposActivos.map(campo => campo.nombre_campo));
-    const lineas = (tipo.plantilla || plantillaBase(tipo.nombre, []))
-        .split("\n")
-        .filter(linea => {
-            const match = linea.match(/\{\{([a-zA-Z0-9_]+)\}\}/);
+    const lineasOriginales = (tipo.plantilla || plantillaBase(tipo.nombre, [])).split("\n");
+    const lineasPorCampo = new Map();
+    const lineasBase = [];
+    const lineasFinales = [];
+    let encontroBloqueCampos = false;
 
-            if (!match) {
-                return true;
+    lineasOriginales.forEach(linea => {
+        const variables = Array.from(linea.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)).map(match => match[1]);
+        const variableCampo = variables.find(variable => nombresCampos.has(variable));
+
+        if (variableCampo) {
+            encontroBloqueCampos = true;
+
+            if (nombresActivos.has(variableCampo) && !lineasPorCampo.has(variableCampo)) {
+                lineasPorCampo.set(variableCampo, linea);
             }
 
-            const variable = match[1];
-            const esCampo = tipo.campos.some(campo => campo.nombre_campo === variable);
+            return;
+        }
 
-            return !esCampo || nombresActivos.has(variable);
-        });
-
-    camposActivos.forEach(campo => {
-        const variable = `{{${campo.nombre_campo}}}`;
-        const existe = lineas.some(linea => linea.includes(variable));
-
-        if (!existe) {
-            lineas.push(`*${campo.etiqueta}:* ${variable}`);
+        if (encontroBloqueCampos) {
+            lineasFinales.push(linea);
+        } else {
+            lineasBase.push(linea);
         }
     });
 
+    while (lineasBase[lineasBase.length - 1] === "") {
+        lineasBase.pop();
+    }
+
+    while (lineasFinales[0] === "") {
+        lineasFinales.shift();
+    }
+
+    const lineasCampos = camposActivos.map(campo => {
+        const variable = `{{${campo.nombre_campo}}}`;
+        return lineasPorCampo.get(campo.nombre_campo) || `*${campo.etiqueta}:* ${variable}`;
+    });
+
+    const lineas = [
+        ...lineasBase,
+        ...(lineasBase.length && lineasCampos.length ? [""] : []),
+        ...lineasCampos,
+        ...(lineasFinales.length ? ["", ...lineasFinales] : [])
+    ];
+
     tipo.plantilla = normalizarEtiquetasPlantilla(lineas.join("\n").replace(/\n{3,}/g, "\n\n").trim());
+}
+
+function inicializarArrastreCamposAdmin() {
+    const lista = document.getElementById("adminCamposList");
+
+    if (!lista) {
+        return;
+    }
+
+    let tarjetaActiva = null;
+    let ordenInicial = [];
+
+    lista.querySelectorAll(".drag-handle").forEach(handle => {
+        handle.addEventListener("pointerdown", event => {
+            tarjetaActiva = event.currentTarget.closest(".admin-field-card");
+            ordenInicial = obtenerOrdenCamposDesdeDOM();
+            tarjetaActiva.classList.add("is-dragging");
+            event.currentTarget.setPointerCapture(event.pointerId);
+            event.preventDefault();
+        });
+
+        handle.addEventListener("pointermove", event => {
+            if (!tarjetaActiva) {
+                return;
+            }
+
+            const siguiente = obtenerTarjetaDespuesDePosicion(lista, event.clientY, tarjetaActiva);
+
+            if (siguiente) {
+                lista.insertBefore(tarjetaActiva, siguiente);
+            } else {
+                lista.appendChild(tarjetaActiva);
+            }
+        });
+
+        handle.addEventListener("pointerup", event => {
+            if (!tarjetaActiva) {
+                return;
+            }
+
+            event.currentTarget.releasePointerCapture(event.pointerId);
+            tarjetaActiva.classList.remove("is-dragging");
+            tarjetaActiva = null;
+
+            const ordenFinal = obtenerOrdenCamposDesdeDOM();
+            if (ordenFinal.join(",") !== ordenInicial.join(",")) {
+                guardarOrdenCamposAdmin(ordenFinal);
+            }
+        });
+
+        handle.addEventListener("pointercancel", event => {
+            if (!tarjetaActiva) {
+                return;
+            }
+
+            event.currentTarget.releasePointerCapture(event.pointerId);
+            tarjetaActiva.classList.remove("is-dragging");
+            tarjetaActiva = null;
+            renderAdminFormularios();
+        });
+    });
+}
+
+function obtenerTarjetaDespuesDePosicion(lista, posicionY, tarjetaActiva) {
+    return Array.from(lista.querySelectorAll(".admin-field-card:not(.is-dragging)"))
+        .reduce((cercana, tarjeta) => {
+            const caja = tarjeta.getBoundingClientRect();
+            const distancia = posicionY - caja.top - caja.height / 2;
+
+            if (distancia < 0 && distancia > cercana.distancia) {
+                return { distancia, tarjeta };
+            }
+
+            return cercana;
+        }, { distancia: Number.NEGATIVE_INFINITY, tarjeta: null }).tarjeta;
+}
+
+function obtenerOrdenCamposDesdeDOM() {
+    return Array.from(document.querySelectorAll("#adminCamposList [data-campo-id]"))
+        .map(elemento => Number(elemento.dataset.campoId));
+}
+
+function guardarOrdenCamposAdmin(ordenIds) {
+    const configuracion = obtenerConfiguracion();
+    const tipo = configuracion.tiposReportes.find(item => item.id === Number(adminTipoReporteSeleccionado));
+
+    if (!tipo) {
+        return;
+    }
+
+    ordenIds.forEach((campoId, index) => {
+        const campo = tipo.campos.find(item => item.id === campoId);
+
+        if (campo) {
+            campo.orden = index + 1;
+        }
+    });
+
+    sincronizarPlantillaConCampos(tipo);
+    guardarConfiguracion(configuracion);
+    renderAdminFormularios();
 }
 
 function renderEditorCampoAdmin(tipo) {

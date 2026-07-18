@@ -791,6 +791,37 @@ body {
     box-shadow: 0 6px 16px rgba(0,0,0,.08);
 }
 
+.admin-field-card.is-dragging {
+    opacity: .72;
+    transform: scale(.99);
+    box-shadow: 0 12px 24px rgba(15,23,42,.16);
+}
+
+.admin-field-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.drag-handle {
+    width: 34px;
+    min-height: 42px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: #ecfdf5;
+    color: #166534;
+    font-size: 20px;
+    font-weight: 900;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
 .admin-field-card strong,
 .admin-field-card span {
     display: block;
