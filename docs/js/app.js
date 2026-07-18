@@ -1383,8 +1383,10 @@ function renderListaCamposAdmin(tipo) {
     return `
         <div class="admin-list" id="adminCamposList">
             ${campos.map(campo => `
-                <div class="admin-field-card admin-field-draggable" data-campo-id="${campo.id}">
-                    <span class="drag-handle" role="button" aria-label="Arrastrar campo" title="Arrastrar campo">☰</span>
+                <div class="admin-field-card ${esCampoHoraFija(campo) ? "admin-field-fixed" : "admin-field-draggable"}" data-campo-id="${campo.id}">
+                    ${esCampoHoraFija(campo)
+                        ? `<span class="drag-handle drag-handle-fixed" aria-label="Hora fija" title="Hora fija">H</span>`
+                        : `<span class="drag-handle" role="button" aria-label="Arrastrar campo" title="Arrastrar campo"></span>`}
                     <div class="admin-field-main">
                         <strong>${campo.orden}. ${campo.etiqueta}</strong>
                         <span>${campo.tipo_campo} - {{${campo.nombre_campo}}}</span>
@@ -1397,6 +1399,10 @@ function renderListaCamposAdmin(tipo) {
             `).join("")}
         </div>
     `;
+}
+
+function esCampoHoraFija(campo) {
+    return campo.nombre_campo === "hora";
 }
 
 function renderEditorPlantillaAdmin(tipo) {
@@ -1428,10 +1434,12 @@ function renderEditorPlantillaAdmin(tipo) {
 }
 
 function sincronizarPlantillaConCampos(tipo) {
+    const variablesEncabezado = new Set(["tipo_reporte", "fecha", "hora"]);
     const camposActivos = tipo.campos
         .filter(campo => campo.activo)
+        .filter(campo => !esCampoHoraFija(campo))
         .sort((a, b) => a.orden - b.orden);
-    const nombresCampos = new Set(tipo.campos.map(campo => campo.nombre_campo));
+    const nombresCampos = new Set(tipo.campos.filter(campo => !esCampoHoraFija(campo)).map(campo => campo.nombre_campo));
     const nombresActivos = new Set(camposActivos.map(campo => campo.nombre_campo));
     const lineasOriginales = (tipo.plantilla || plantillaBase(tipo.nombre, [])).split("\n");
     const lineasPorCampo = new Map();
@@ -1442,6 +1450,12 @@ function sincronizarPlantillaConCampos(tipo) {
     lineasOriginales.forEach(linea => {
         const variables = Array.from(linea.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)).map(match => match[1]);
         const variableCampo = variables.find(variable => nombresCampos.has(variable));
+        const variableEncabezado = variables.find(variable => variablesEncabezado.has(variable));
+
+        if (variableEncabezado && !variableCampo) {
+            lineasBase.push(linea);
+            return;
+        }
 
         if (variableCampo) {
             encontroBloqueCampos = true;
@@ -1493,7 +1507,7 @@ function inicializarArrastreCamposAdmin() {
     let tarjetaActiva = null;
     let ordenInicial = [];
 
-    lista.querySelectorAll(".drag-handle").forEach(handle => {
+    lista.querySelectorAll(".drag-handle:not(.drag-handle-fixed)").forEach(handle => {
         handle.addEventListener("pointerdown", event => {
             tarjetaActiva = event.currentTarget.closest(".admin-field-card");
             ordenInicial = obtenerOrdenCamposDesdeDOM();
@@ -1545,7 +1559,7 @@ function inicializarArrastreCamposAdmin() {
 }
 
 function obtenerTarjetaDespuesDePosicion(lista, posicionY, tarjetaActiva) {
-    return Array.from(lista.querySelectorAll(".admin-field-card:not(.is-dragging)"))
+    return Array.from(lista.querySelectorAll(".admin-field-draggable:not(.is-dragging)"))
         .reduce((cercana, tarjeta) => {
             const caja = tarjeta.getBoundingClientRect();
             const distancia = posicionY - caja.top - caja.height / 2;
@@ -1559,7 +1573,7 @@ function obtenerTarjetaDespuesDePosicion(lista, posicionY, tarjetaActiva) {
 }
 
 function obtenerOrdenCamposDesdeDOM() {
-    return Array.from(document.querySelectorAll("#adminCamposList [data-campo-id]"))
+    return Array.from(document.querySelectorAll("#adminCamposList .admin-field-draggable[data-campo-id]"))
         .map(elemento => Number(elemento.dataset.campoId));
 }
 
@@ -1571,11 +1585,21 @@ function guardarOrdenCamposAdmin(ordenIds) {
         return;
     }
 
+    const camposActivosOrdenados = tipo.campos
+        .filter(campo => campo.activo)
+        .sort((a, b) => a.orden - b.orden);
+    const ordenesFijas = new Set(camposActivosOrdenados
+        .filter(esCampoHoraFija)
+        .map(campo => Number(campo.orden) || 0));
+    const espaciosLibres = camposActivosOrdenados
+        .map((campo, index) => Number(campo.orden) || index + 1)
+        .filter(orden => !ordenesFijas.has(orden));
+
     ordenIds.forEach((campoId, index) => {
         const campo = tipo.campos.find(item => item.id === campoId);
 
         if (campo) {
-            campo.orden = index + 1;
+            campo.orden = espaciosLibres[index] || index + 1;
         }
     });
 

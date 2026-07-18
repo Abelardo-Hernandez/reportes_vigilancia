@@ -805,6 +805,7 @@ body {
 .drag-handle {
     width: 34px;
     min-height: 42px;
+    position: relative;
     display: grid;
     place-items: center;
     flex-shrink: 0;
@@ -818,8 +819,27 @@ body {
     user-select: none;
 }
 
+.drag-handle:not(.drag-handle-fixed)::before {
+    content: "";
+    width: 16px;
+    height: 2px;
+    display: block;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 -6px 0 currentColor, 0 6px 0 currentColor;
+}
+
 .drag-handle:active {
     cursor: grabbing;
+}
+
+.drag-handle-fixed {
+    background: #eef2ff;
+    color: #3730a3;
+    cursor: default;
+    font-size: 13px;
+    letter-spacing: 0;
+    touch-action: auto;
 }
 
 .admin-field-card strong,
