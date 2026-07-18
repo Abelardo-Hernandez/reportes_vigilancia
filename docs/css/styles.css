@@ -346,6 +346,7 @@ button {
 
 .loading-box,
 .info-card,
+.onboarding-card,
 .login-card,
 .error-box {
     background: rgba(255,255,255,.92);
@@ -353,6 +354,74 @@ button {
     border-radius: 18px;
     padding: 20px;
     box-shadow: 0 8px 20px rgba(0,0,0,.10);
+}
+
+.onboarding-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    padding-bottom: 18px;
+}
+
+.onboarding-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.onboarding-card h2 {
+    margin: 0;
+    color: #0f5132;
+    font-size: 24px;
+}
+
+.onboarding-card p {
+    margin: 0;
+    color: #475569;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.onboarding-mark {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    background: #dcfce7;
+    color: #166534;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: .4px;
+}
+
+.onboarding-card .btn-main-small,
+.onboarding-card .btn-secondary-small {
+    width: 100%;
+    text-align: center;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(255,255,255,.92);
+    border-radius: 18px;
+    padding: 22px;
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(0,0,0,.10);
+}
+
+.empty-state strong {
+    color: #0f5132;
+    font-size: 20px;
+}
+
+.empty-state span {
+    color: #475569;
+    font-size: 15px;
+    line-height: 1.4;
 }
 
 .login-card {

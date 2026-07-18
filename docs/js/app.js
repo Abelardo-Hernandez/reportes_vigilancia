@@ -1,7 +1,7 @@
 ﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_CONFIG_SOURCE_KEY = "rv_configuracion_archivo";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
-const CONFIG_INICIAL_URL = "./configuracion-reportes-vigilancia.json";
+const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
 const APP_VERSION = "1.2.1";
 const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
@@ -39,85 +39,10 @@ function crearConfiguracionInicial() {
     return {
         version: 6,
         guardias: [],
-        lugares: [
-            { id: 1, nombre: "Caseta Principal", activo: true },
-            { id: 2, nombre: "Caseta Norte", activo: true },
-            { id: 3, nombre: "Caseta Sur", activo: true },
-            { id: 4, nombre: "Patio", activo: true },
-            { id: 5, nombre: "Estacionamiento", activo: true }
-        ],
-        turnos: [
-            { id: 1, nombre: "24 x 24", activo: true },
-            { id: 2, nombre: "12 x 12", activo: true }
-        ],
-        tiposReportes: [
-            {
-                id: 1,
-                nombre: "ASISTENCIA",
-                clave: "asistencia",
-                emoji: "👮",
-                color: "#2563eb",
-                orden: 1,
-                activo: true,
-                campos: [
-                    crearCampo(1, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
-                    crearCampo(2, "Turno", "turno", "catalogo", "", "turnos", true, 2),
-                    crearCampo(3, "Observaciones", "observaciones", "textarea", "", "", false, 3)
-                ],
-                plantilla: plantillaBase("ASISTENCIA", ["guardia", "turno", "observaciones"])
-            },
-            {
-                id: 2,
-                nombre: "NOVEDAD",
-                clave: "novedad",
-                emoji: "📝",
-                color: "#16a34a",
-                orden: 2,
-                activo: true,
-                campos: [
-                    crearCampo(4, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
-                    crearCampo(5, "Ubicación", "ubicacion", "catalogo", "", "lugares", true, 2),
-                    crearCampo(6, "Descripción de la novedad", "descripcion", "textarea", "", "", true, 3)
-                ],
-                plantilla: `*{{tipo_reporte}}*
-*Fecha:* {{fecha}}
-*Hora:* {{hora}}
-
-*Guardia:* {{guardia}}
-*Ubicación:* {{ubicacion}}
-*Novedad:* {{descripcion}}`
-            },
-            {
-                id: 3,
-                nombre: "RONDÍN",
-                clave: "rondin",
-                emoji: "🚶",
-                color: "#f59e0b",
-                orden: 3,
-                activo: true,
-                campos: [
-                    crearCampo(7, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
-                    crearCampo(8, "Zona", "zona", "texto", "", "", true, 2),
-                    crearCampo(9, "Resultado", "resultado", "textarea", "", "", true, 3)
-                ],
-                plantilla: plantillaBase("RONDÍN", ["guardia", "zona", "resultado"])
-            },
-            {
-                id: 4,
-                nombre: "INCIDENCIA",
-                clave: "incidencia",
-                emoji: "🚨",
-                color: "#dc2626",
-                orden: 4,
-                activo: true,
-                campos: [
-                    crearCampo(10, "Guardia", "guardia", "catalogo", "", "guardias", true, 1),
-                    crearCampo(11, "Ubicación", "ubicacion", "texto", "", "", true, 2),
-                    crearCampo(12, "Descripción", "descripcion", "textarea", "", "", true, 3)
-                ],
-                plantilla: plantillaBase("INCIDENCIA", ["guardia", "ubicacion", "descripcion"])
-            }
-        ]
+        lugares: [],
+        turnos: [],
+        tiposReportes: [],
+        catalogos: []
     };
 }
 
@@ -174,38 +99,7 @@ function crearFirmaConfiguracion(configuracion) {
 }
 
 async function cargarConfiguracionInicial(opciones = {}) {
-    const controlador = new AbortController();
-    const timeout = setTimeout(() => controlador.abort(), opciones.timeout || 5000);
-
-    try {
-        const url = opciones.evitarCache
-            ? `${CONFIG_INICIAL_URL}?actualizado=${Date.now()}`
-            : CONFIG_INICIAL_URL;
-        const respuesta = await fetch(url, {
-            cache: opciones.evitarCache ? "reload" : "default",
-            signal: controlador.signal
-        });
-
-        if (!respuesta.ok) {
-            throw new Error("No fue posible cargar la configuración inicial.");
-        }
-
-        const configuracion = await respuesta.json();
-
-        if (!Array.isArray(configuracion.tiposReportes)) {
-            throw new Error("La configuración inicial no tiene formularios.");
-        }
-
-        return migrarConfiguracion(configuracion);
-    } catch (error) {
-        console.error(error);
-        if (opciones.permitirFallback === false) {
-            throw error;
-        }
-        return migrarConfiguracion(crearConfiguracionInicial());
-    } finally {
-        clearTimeout(timeout);
-    }
+    return migrarConfiguracion(crearConfiguracionInicial());
 }
 
 async function asegurarConfiguracionInicial() {
@@ -213,7 +107,6 @@ async function asegurarConfiguracionInicial() {
 
     if (rawActual) {
         obtenerConfiguracion();
-        actualizarConfiguracionDesdeArchivo();
         return;
     }
 
@@ -222,27 +115,6 @@ async function asegurarConfiguracionInicial() {
         preservarCatalogos: false,
         firmaArchivo: crearFirmaConfiguracion(inicial)
     });
-}
-
-async function actualizarConfiguracionDesdeArchivo() {
-    try {
-        const inicial = await cargarConfiguracionInicial({
-            evitarCache: true,
-            timeout: 4000,
-            permitirFallback: false
-        });
-        const firmaInicial = crearFirmaConfiguracion(inicial);
-        const firmaGuardada = localStorage.getItem(STORAGE_CONFIG_SOURCE_KEY);
-
-        if (firmaGuardada !== firmaInicial) {
-            guardarConfiguracion(inicial, {
-                preservarCatalogos: false,
-                firmaArchivo: firmaInicial
-            });
-        }
-    } catch (error) {
-        console.error(error);
-    }
 }
 
 async function inicializarAplicacion() {
@@ -254,7 +126,11 @@ async function inicializarAplicacion() {
     } finally {
         history.replaceState({ vista: "inicio", params: {} }, "");
         navegacionInicializada = true;
-        mostrarInicio({ desdeHistorial: true });
+        if (localStorage.getItem(STORAGE_ONBOARDING_KEY) === "si") {
+            mostrarInicio({ desdeHistorial: true });
+        } else {
+            mostrarPresentacionInicial({ desdeHistorial: true });
+        }
         marcarAplicacionLista();
     }
 }
@@ -296,6 +172,8 @@ function volverLogico() {
 
 function obtenerVistaAnterior(vista, params = {}) {
     const flujo = {
+        presentacion: null,
+        importacionInicial: { vista: "presentacion", params: {} },
         menuReportes: { vista: "inicio", params: {} },
         reporte: { vista: "menuReportes", params: {} },
         preview: { vista: "reporte", params },
@@ -320,6 +198,16 @@ function renderizarVista(vista, params = {}, opciones = {}) {
 
     if (vista === "menuReportes") {
         mostrarMenuReportes(opciones);
+        return;
+    }
+
+    if (vista === "presentacion") {
+        mostrarPresentacionInicial(opciones);
+        return;
+    }
+
+    if (vista === "importacionInicial") {
+        mostrarOpcionesImportacionInicial(opciones);
         return;
     }
 
@@ -375,17 +263,9 @@ function migrarConfiguracion(configuracion) {
     configuracion.guardias.forEach(guardia => {
         delete guardia.turno;
     });
-    configuracion.lugares = configuracion.lugares || [
-        { id: 1, nombre: "Caseta Principal", activo: true },
-        { id: 2, nombre: "Caseta Norte", activo: true },
-        { id: 3, nombre: "Caseta Sur", activo: true },
-        { id: 4, nombre: "Patio", activo: true },
-        { id: 5, nombre: "Estacionamiento", activo: true }
-    ];
-    configuracion.turnos = configuracion.turnos || [
-        { id: 1, nombre: "24 x 24", activo: true },
-        { id: 2, nombre: "12 x 12", activo: true }
-    ];
+    configuracion.lugares = configuracion.lugares || [];
+    configuracion.turnos = configuracion.turnos || [];
+    configuracion.tiposReportes = configuracion.tiposReportes || [];
 
     configuracion.tiposReportes.forEach(tipo => {
         tipo.activo = tipo.activo !== false;
@@ -649,6 +529,57 @@ function cambiarHeader(titulo, subtitulo) {
     animarElemento(appHeader, "header-enter", 300);
 }
 
+function mostrarPresentacionInicial(opciones = {}) {
+    registrarNavegacion("presentacion", {}, opciones);
+    cambiarHeader("Bienvenido", "Asistente de reportes por WhatsApp");
+    appContent.className = "app-content onboarding-content";
+    appContent.innerHTML = `
+        <section class="onboarding-card">
+            <div class="onboarding-mark">WA</div>
+            <h2>Reportes mas rapidos</h2>
+            <p>
+                Esta PWA ayuda a agilizar los reportes por WhatsApp: organiza los datos,
+                arma el mensaje y lo deja listo para enviar.
+            </p>
+            <p>
+                Puede importar una configuracion existente para cargar sus formularios,
+                catalogos y plantillas en este dispositivo.
+            </p>
+            <button class="btn-main-small" type="button" onclick="mostrarOpcionesImportacionInicial()">
+                Aceptar
+            </button>
+        </section>
+    `;
+}
+
+function mostrarOpcionesImportacionInicial(opciones = {}) {
+    registrarNavegacion("importacionInicial", {}, opciones);
+    cambiarHeader("Configuracion", "Importar o iniciar en blanco");
+    appContent.className = "app-content onboarding-content";
+    appContent.innerHTML = `
+        <section class="onboarding-card">
+            <h2>Importar configuracion</h2>
+            <p>
+                Si ya tiene un archivo JSON de configuracion, importelo ahora para activar
+                los formularios de reporte.
+            </p>
+            <label class="btn-main-small file-button">
+                Importar configuracion
+                <input type="file" accept="application/json" onchange="importarConfiguracion(event, { destino: 'inicio' })">
+            </label>
+            <button class="btn-secondary-small" type="button" onclick="continuarSinImportar()">
+                Continuar sin importar
+            </button>
+        </section>
+    `;
+}
+
+function continuarSinImportar() {
+    guardarConfiguracion(crearConfiguracionInicial(), { preservarCatalogos: false });
+    localStorage.setItem(STORAGE_ONBOARDING_KEY, "si");
+    mostrarInicio();
+}
+
 function mostrarInicio(opciones = {}) {
     registrarNavegacion("inicio", {}, opciones);
     cambiarHeader(HEADER_INICIO_TITULO, HEADER_INICIO_SUBTITULO);
@@ -682,6 +613,15 @@ function mostrarMenuReportes(opciones = {}) {
     cambiarHeader("NUEVO REPORTE", "Seleccione el tipo de reporte");
     appContent.className = "app-content menu-grid";
     appContent.innerHTML = "";
+
+    if (tipos.length === 0) {
+        appContent.innerHTML = `
+            <div class="empty-state">
+                <strong>Sin formularios</strong>
+                <span>Importe una configuracion para habilitar los tipos de reporte.</span>
+            </div>
+        `;
+    }
 
     tipos.forEach(tipo => {
         const button = document.createElement("button");
@@ -1845,7 +1785,7 @@ function siguienteIdTipo(configuracion) {
 }
 
 function siguienteIdCampo(configuracion) {
-    return Math.max(0, ...configuracion.tiposReportes.flatMap(tipo => tipo.campos.map(campo => campo.id))) + 1;
+    return Math.max(0, ...configuracion.tiposReportes.flatMap(tipo => (tipo.campos || []).map(campo => campo.id))) + 1;
 }
 
 function insertarVariablePlantilla(variable) {
@@ -2279,7 +2219,7 @@ function exportarConfiguracion() {
     URL.revokeObjectURL(url);
 }
 
-function importarConfiguracion(event) {
+function importarConfiguracion(event, opciones = {}) {
     const file = event.target.files[0];
 
     if (!file) {
@@ -2294,8 +2234,13 @@ function importarConfiguracion(event) {
                 throw new Error("Archivo inválido");
             }
             guardarConfiguracion(configuracion, { preservarCatalogos: false });
+            localStorage.setItem(STORAGE_ONBOARDING_KEY, "si");
             alert("Configuración importada.");
-            mostrarPanelAdmin();
+            if (opciones.destino === "inicio") {
+                mostrarInicio();
+            } else {
+                mostrarPanelAdmin();
+            }
         } catch (error) {
             console.error(error);
             alert("No fue posible importar el archivo.");
