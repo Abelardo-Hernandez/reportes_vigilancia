@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PT Reportes</string>
+    <string name="title_activity_main">PT Reportes</string>
+    <string name="package_name">com.puntotextil.reportesvigilancia</string>
+    <string name="custom_url_scheme">com.puntotextil.reportesvigilancia</string>
+</resources>

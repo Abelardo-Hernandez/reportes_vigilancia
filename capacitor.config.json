@@ -1,0 +1,8 @@
+{
+  "appId": "com.puntotextil.reportesvigilancia",
+  "appName": "PT Reportes",
+  "webDir": "docs",
+  "server": {
+    "androidScheme": "https"
+  }
+}

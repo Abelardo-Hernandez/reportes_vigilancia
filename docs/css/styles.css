@@ -9,6 +9,11 @@ body {
     color: #1f2937;
 }
 
+body.android-shell {
+    --android-top-safe-space: 44px;
+    --android-bottom-safe-space: 0px;
+}
+
 body:not(.app-ready) .app-container {
     opacity: 0;
     transform: translateY(10px);
@@ -27,7 +32,11 @@ body.app-ready .app-container {
     height: 100dvh;
     max-width: 480px;
     margin: auto;
-    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    padding:
+        max(12px, calc(env(safe-area-inset-top) + var(--android-top-safe-space, 0px)))
+        max(12px, env(safe-area-inset-right))
+        max(12px, calc(env(safe-area-inset-bottom) + var(--android-bottom-safe-space, 0px)))
+        max(12px, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
 }
@@ -500,7 +509,11 @@ body {
     height: 100dvh;
     max-width: 480px;
     margin: auto;
-    padding: 12px;
+    padding:
+        max(12px, calc(env(safe-area-inset-top) + var(--android-top-safe-space, 0px)))
+        max(12px, env(safe-area-inset-right))
+        max(12px, calc(env(safe-area-inset-bottom) + var(--android-bottom-safe-space, 0px)))
+        max(12px, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
 }

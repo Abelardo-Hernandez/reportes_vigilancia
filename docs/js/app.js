@@ -1,7 +1,7 @@
 ﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
-const APP_VERSION = "1.2.2";
+const APP_VERSION = "1.2.7";
 const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
 
@@ -22,6 +22,10 @@ let adminCatalogoSeleccionado = null;
 let navegacionInicializada = false;
 let vistaActual = "inicio";
 let paramsVistaActual = {};
+
+if (window.Capacitor?.getPlatform?.() === "android") {
+    document.body.classList.add("android-shell");
+}
 
 const TIPOS_CAMPOS = [
     { id: 1, clave: "texto", nombre: "Texto corto" },
@@ -136,6 +140,19 @@ function volverLogico() {
     renderizarVista(anterior.vista, anterior.params, { desdeHistorial: true });
     history.replaceState({ vista: anterior.vista, params: anterior.params }, "");
 }
+
+function puedeVolverLogicamente() {
+    return Boolean(obtenerVistaAnterior(vistaActual, paramsVistaActual));
+}
+
+window.manejarAtrasAndroid = function manejarAtrasAndroid() {
+    if (puedeVolverLogicamente()) {
+        volverLogico();
+        return true;
+    }
+
+    return false;
+};
 
 function obtenerVistaAnterior(vista, params = {}) {
     const flujo = {

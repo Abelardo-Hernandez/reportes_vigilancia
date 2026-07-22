@@ -6,3 +6,7 @@ backend/
 *.tmp
 Thumbs.db
 .DS_Store
+android/*.keystore
+android/*.jks
+android/keystore.properties
+android/local.properties

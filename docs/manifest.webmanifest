@@ -1,6 +1,6 @@
 {
-    "name": "Reportes de Vigilancia",
-    "short_name": "Reportes",
+    "name": "PT Reportes",
+    "short_name": "PT Reportes",
     "description": "Asistente para generar reportes de vigilancia por WhatsApp.",
     "start_url": "./index.html",
     "scope": "./",
