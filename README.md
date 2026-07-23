@@ -4,7 +4,7 @@ PWA offline para generar reportes de vigilancia y formatearlos para WhatsApp.
 
 ## Version
 
-Actual: `1.2.7`
+Actual: `1.2.9`
 
 - Panel de administrador con catálogos configurables.
 - Formularios con hora manual en formato 12 horas.

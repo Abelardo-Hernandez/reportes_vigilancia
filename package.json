@@ -1,6 +1,6 @@
 {
   "name": "reportes-vigilancia",
-  "version": "1.2.7",
+  "version": "1.2.9",
   "private": true,
   "description": "PWA offline para generar reportes de vigilancia y formatearlos para WhatsApp.",
   "scripts": {

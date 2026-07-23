@@ -4,6 +4,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
+import android.webkit.JavascriptInterface;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
@@ -14,6 +15,9 @@ import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private volatile String vistaActualAndroid = "inicio";
+    private volatile String paramsVistaActualAndroid = "{}";
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -26,22 +30,81 @@ public class MainActivity extends BridgeActivity {
             View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         );
         aplicarEspacioSeguroAndroid();
+        registrarPuenteNavegacionAndroid();
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (getBridge() != null && getBridge().getWebView() != null) {
-                    getBridge().getWebView().evaluateJavascript(
-                        "Boolean(window.manejarAtrasAndroid && window.manejarAtrasAndroid());",
-                        resultado -> {
-                            if (!"true".equals(resultado)) {
-                                moveTaskToBack(true);
-                            }
-                        }
-                    );
-                }
+                manejarAtras();
             }
         });
+    }
+
+    @Override
+    public void onBackPressed() {
+        manejarAtras();
+    }
+
+    private void manejarAtras() {
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            moveTaskToBack(true);
+            return;
+        }
+
+        if (puedeVolverDesdeVistaNativa()) {
+            getBridge().getWebView().evaluateJavascript(
+                "(function(){return Boolean(window.manejarAtrasAndroid && window.manejarAtrasAndroid());})();",
+                null
+            );
+            return;
+        }
+
+        getBridge().getWebView().evaluateJavascript(
+            "(function(){return Boolean(window.manejarAtrasAndroid && window.manejarAtrasAndroid());})();",
+            resultado -> {
+                if (!"true".equals(resultado)) {
+                    moveTaskToBack(true);
+                }
+            }
+        );
+    }
+
+    private boolean puedeVolverDesdeVistaNativa() {
+        return "importacionInicial".equals(vistaActualAndroid)
+            || "menuReportes".equals(vistaActualAndroid)
+            || "reporte".equals(vistaActualAndroid)
+            || "preview".equals(vistaActualAndroid)
+            || "login".equals(vistaActualAndroid)
+            || "adminPanel".equals(vistaActualAndroid)
+            || "adminFormularios".equals(vistaActualAndroid)
+            || "adminCatalogos".equals(vistaActualAndroid)
+            || "adminHistorial".equals(vistaActualAndroid)
+            || "adminDatos".equals(vistaActualAndroid);
+    }
+
+    private void registrarPuenteNavegacionAndroid() {
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+
+        getBridge().getWebView().addJavascriptInterface(new NavegacionAndroidBridge(), "ReportesAndroidNavigation");
+        getBridge().getWebView().evaluateJavascript(
+            "(function(){"
+                + "if(window.obtenerVistaActualAndroid){"
+                + "var estado=JSON.parse(window.obtenerVistaActualAndroid());"
+                + "window.ReportesAndroidNavigation.actualizarVista(estado.vista, JSON.stringify(estado.params||{}));"
+                + "}"
+                + "})();",
+            null
+        );
+    }
+
+    private class NavegacionAndroidBridge {
+        @JavascriptInterface
+        public void actualizarVista(String vista, String paramsJson) {
+            vistaActualAndroid = vista == null ? "inicio" : vista;
+            paramsVistaActualAndroid = paramsJson == null ? "{}" : paramsJson;
+        }
     }
 
     private void aplicarEspacioSeguroAndroid() {

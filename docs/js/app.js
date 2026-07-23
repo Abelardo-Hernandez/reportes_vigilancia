@@ -1,7 +1,7 @@
 ﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
-const APP_VERSION = "1.2.7";
+const APP_VERSION = "1.2.9";
 const ADMIN_USUARIO = "admin";
 const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
 
@@ -22,6 +22,18 @@ let adminCatalogoSeleccionado = null;
 let navegacionInicializada = false;
 let vistaActual = "inicio";
 let paramsVistaActual = {};
+
+function sincronizarVistaAndroid() {
+    if (!window.ReportesAndroidNavigation?.actualizarVista) {
+        return;
+    }
+
+    try {
+        window.ReportesAndroidNavigation.actualizarVista(vistaActual, JSON.stringify(paramsVistaActual || {}));
+    } catch (error) {
+        console.error(error);
+    }
+}
 
 if (window.Capacitor?.getPlatform?.() === "android") {
     document.body.classList.add("android-shell");
@@ -109,6 +121,7 @@ async function inicializarAplicacion() {
 function registrarNavegacion(vista, params = {}, opciones = {}) {
     vistaActual = vista;
     paramsVistaActual = params;
+    sincronizarVistaAndroid();
     programarAnimacionVista();
 
     if (opciones.desdeHistorial || !navegacionInicializada) {
@@ -146,12 +159,16 @@ function puedeVolverLogicamente() {
 }
 
 window.manejarAtrasAndroid = function manejarAtrasAndroid() {
-    if (puedeVolverLogicamente()) {
-        volverLogico();
-        return true;
+    if (!puedeVolverLogicamente()) {
+        return false;
     }
 
-    return false;
+    volverLogico();
+    return true;
+};
+
+window.obtenerVistaActualAndroid = function obtenerVistaActualAndroid() {
+    return JSON.stringify({ vista: vistaActual, params: paramsVistaActual || {} });
 };
 
 function obtenerVistaAnterior(vista, params = {}) {
@@ -2162,6 +2179,13 @@ if ("serviceWorker" in navigator) {
 }
 
 window.addEventListener("popstate", event => {
+    const estado = event.state;
+
+    if (estado?.vista) {
+        renderizarVista(estado.vista, estado.params || {}, { desdeHistorial: true });
+        return;
+    }
+
     volverLogico();
 });
 
