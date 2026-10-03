@@ -1,11 +1,17 @@
-const CACHE_NAME = "reportes-vigilancia-v46";
+const CACHE_NAME = "reportes-vigilancia-v50";
 const APP_SHELL = [
     "./",
     "./index.html",
     "./manifest.webmanifest",
     "./configuracion-reportes-vigilancia.json",
     "./css/styles.css",
+    "./css/admin.css",
     "./js/app.js",
+    "./js/cloud.js",
+    "./js/report-context.js",
+    "./js/admin-ui.js",
+    "./js/vendor/exceljs.min.js",
+    "./js/supabase.js",
     "./js/background.js",
     "./img/logo.png",
     "./icons/icon-180.png",
@@ -47,6 +53,8 @@ self.addEventListener("fetch", event => {
     }
 
     const url = new URL(event.request.url);
+    // Solo recursos de la app: nunca cachear respuestas autenticadas de Supabase.
+    if (url.origin !== self.location.origin) return;
     const esConfiguracion = url.pathname.endsWith("/configuracion-reportes-vigilancia.json");
 
     if (esConfiguracion) {

@@ -1,9 +1,7 @@
-﻿const STORAGE_CONFIG_KEY = "rv_configuracion";
+let STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
-const APP_VERSION = "1.2.9";
-const ADMIN_USUARIO = "admin";
-const ADMIN_PASSWORD_HASH = "87ce0da4c7bdf748e0fa1271fb19271fc6a9bad70ad053ba814b4d84e0749696";
+const APP_VERSION = "2.2.0";
 
 const appContent = document.getElementById("appContent");
 const appHeader = document.querySelector(".app-header");
@@ -14,6 +12,7 @@ const HEADER_INICIO_SUBTITULO = subtituloVista.textContent;
 
 let vistaPreviaActual = null;
 let formularioActual = null;
+let evidenciaActual = null;
 let valoresReporteActual = {};
 let adminActual = null;
 let adminTipoReporteSeleccionado = null;
@@ -98,22 +97,16 @@ async function asegurarConfiguracionInicial() {
 }
 
 async function inicializarAplicacion() {
-    const configuracionExistia = Boolean(localStorage.getItem(STORAGE_CONFIG_KEY));
-
+    history.replaceState({ vista: "inicio", params: {} }, "");
+    navegacionInicializada = true;
+    localStorage.removeItem("rv_admin_sesion");
     try {
-        await asegurarConfiguracionInicial();
+        if (await cargarCuentaNube()) mostrarInicio({ desdeHistorial: true });
+        else mostrarAccesoNube();
     } catch (error) {
-        console.error(error);
-        guardarConfiguracion(crearConfiguracionInicial(), { preservarCatalogos: false });
+        limpiarContextoNube();
+        mostrarAccesoNube(`No se pudo cargar la cuenta: ${error.message}`);
     } finally {
-        history.replaceState({ vista: "inicio", params: {} }, "");
-        navegacionInicializada = true;
-        if (configuracionExistia || localStorage.getItem(STORAGE_ONBOARDING_KEY) === "si") {
-            localStorage.setItem(STORAGE_ONBOARDING_KEY, "si");
-            mostrarInicio({ desdeHistorial: true });
-        } else {
-            mostrarPresentacionInicial({ desdeHistorial: true });
-        }
         marcarAplicacionLista();
     }
 }
@@ -139,6 +132,7 @@ function registrarNavegacion(vista, params = {}, opciones = {}) {
 }
 
 function volverLogico() {
+    if (vistaPreviaActual?.enviando) return;
     if (vistaActual === "reporte") {
         volverAlMenuReportes({ desdeHistorial: true });
         return;
@@ -180,22 +174,27 @@ function obtenerVistaAnterior(vista, params = {}) {
         preview: { vista: "reporte", params },
         login: { vista: "inicio", params: {} },
         adminPanel: { vista: "inicio", params: {} },
+        adminAvanzada: { vista: "adminPanel", params: {} },
+        adminUbicaciones: { vista: "adminPanel", params: {} },
         adminFormularios: { vista: "adminPanel", params: {} },
         adminCatalogos: { vista: "adminPanel", params: {} },
         adminHistorial: { vista: "adminPanel", params: {} },
-        adminDatos: { vista: "adminPanel", params: {} }
+        adminDatos: { vista: "adminAvanzada", params: {} }
     };
 
     return flujo[vista] || null;
 }
 
 function renderizarVista(vista, params = {}, opciones = {}) {
+    if (!nube.usuario) return mostrarAccesoNube();
+    if (vista === "adminUbicaciones") return mostrarGestionNube(opciones);
     const esVistaAdmin = vista.startsWith("admin");
 
     if (esVistaAdmin && !sesionAdminActiva()) {
         mostrarLogin(opciones);
         return;
     }
+    if (vista === 'adminAvanzada') return mostrarAvanzada(opciones);
 
     if (vista === "menuReportes") {
         mostrarMenuReportes(opciones);
@@ -256,7 +255,7 @@ function renderizarVista(vista, params = {}, opciones = {}) {
 }
 
 function sesionAdminActiva() {
-    return Boolean(adminActual || localStorage.getItem("rv_admin_sesion") === "activa");
+    return Boolean(nube.usuario && nube.perfil?.rol === "admin");
 }
 
 function migrarConfiguracion(configuracion) {
@@ -385,6 +384,7 @@ function normalizarEtiquetasPlantilla(plantilla = "") {
 }
 
 function actualizarFechaHora() {
+    actualizarDatosAutomaticos();
     const ahora = new Date();
     const opciones = {
         weekday: "long",
@@ -495,43 +495,18 @@ function continuarSinImportar() {
 }
 
 function mostrarInicio(opciones = {}) {
-    registrarNavegacion("inicio", {}, opciones);
-    cambiarHeader(HEADER_INICIO_TITULO, HEADER_INICIO_SUBTITULO);
-    appContent.className = "app-content home-actions";
-    appContent.innerHTML = `
-        <div class="home-primary">
-            <div class="home-brand">
-                <img src="img/logo.png" alt="Punto Textil">
-            </div>
-
-            <button class="btn-main" onclick="mostrarMenuReportes()">
-                NUEVO REPORTE
-            </button>
-        </div>
-
-        <div class="home-secondary">
-            <label class="btn-admin file-button">
-                Importar
-                <input type="file" accept="application/json" onchange="importarConfiguracion(event, { destino: 'inicio' })">
-            </label>
-
-            <button class="btn-admin" onclick="mostrarLogin()">
-                Administrador
-            </button>
-        </div>
-
-        <span class="app-version">v. ${APP_VERSION}</span>
-    `;
+    mostrarInicioNube(opciones);
 }
 
 function mostrarMenuReportes(opciones = {}) {
+    if (!nube.usuario || !nube.ubicacion || !nube.publicacion || !STORAGE_CONFIG_KEY.startsWith("rv_publicado_")) return mostrarInicio();
     registrarNavegacion("menuReportes", {}, opciones);
     const configuracion = obtenerConfiguracion();
     const tipos = configuracion.tiposReportes
         .filter(tipo => tipo.activo)
         .sort((a, b) => a.orden - b.orden);
 
-    cambiarHeader("NUEVO REPORTE", "Seleccione el tipo de reporte");
+    cambiarHeader("NUEVO REPORTE", nube.ubicacion.nombre);
     appContent.className = "app-content menu-grid";
     appContent.innerHTML = "";
 
@@ -539,7 +514,7 @@ function mostrarMenuReportes(opciones = {}) {
         appContent.innerHTML = `
             <div class="empty-state">
                 <strong>Sin formularios</strong>
-                <span>Importe una configuración para habilitar los tipos de reporte.</span>
+                <span>Solicite a su administrador que publique formularios para esta ubicación.</span>
             </div>
         `;
     }
@@ -578,9 +553,11 @@ function limpiarReporteActual() {
 
     vistaPreviaActual = null;
     formularioActual = null;
+    evidenciaActual = null;
 }
 
 function mostrarReporte(clave, opciones = {}) {
+    if (!nube.usuario || !nube.ubicacion || !nube.publicacion || !STORAGE_CONFIG_KEY.startsWith("rv_publicado_")) return mostrarInicio();
     registrarNavegacion("reporte", { clave }, opciones);
     const configuracion = obtenerConfiguracion();
     const tipo = configuracion.tiposReportes.find(item => item.clave === clave && item.activo);
@@ -594,6 +571,8 @@ function mostrarReporte(clave, opciones = {}) {
     }
 
     formularioActual = {
+        ubicacion_id: nube.ubicacion.id,
+        configuracion_id: nube.publicacion.id,
         tipo,
         campos: tipo.campos.filter(campo => campo.activo).sort((a, b) => a.orden - b.orden),
         plantilla: tipo.plantilla || ""
@@ -604,6 +583,7 @@ function mostrarReporte(clave, opciones = {}) {
 
     let html = `
         <form id="formReporte" class="form-card">
+        <div class="info-card">Vigilante: <strong>${escaparNube(datosAutomaticosReporte().vigilante)}</strong><br>Unidad: <strong>${escaparNube(nube.ubicacion.nombre)}</strong><br>La hora se toma del reloj del dispositivo al generar el mensaje.</div>
     `;
 
     formularioActual.campos.forEach(campo => {
@@ -624,6 +604,8 @@ function mostrarReporte(clave, opciones = {}) {
 }
 
 function crearCampoHTML(campo) {
+    const fuente = fuenteAutomatica(campo);
+    if (fuente) return `<div class="form-group"><label>${escaparNube(campo.etiqueta)} <small>Automático</small></label><input type="text" name="${escaparNube(campo.nombre_campo)}" value="${escaparNube(valorAutomatico(campo))}" data-fuente-automatica="${fuente}" readonly aria-readonly="true"></div>`;
     const required = campo.obligatorio ? "required" : "";
     const obligatorioTexto = campo.obligatorio ? "<small>Obligatorio</small>" : "";
     const atributos = `name="${campo.nombre_campo}" data-label="${campo.etiqueta}" data-campo-id="${campo.id}" ${required}`;
@@ -899,7 +881,7 @@ function actualizarCampoCatalogoOtro(nombreCampo) {
 }
 
 function validarCamposCatalogoFormulario(form) {
-    const camposCatalogo = formularioActual.campos.filter(campo => campo.tipo_campo === "catalogo");
+    const camposCatalogo = formularioActual.campos.filter(campo => campo.tipo_campo === "catalogo" && !fuenteAutomatica(campo));
     let esValido = true;
 
     camposCatalogo.forEach(campo => {
@@ -987,19 +969,19 @@ function nombreCatalogo(catalogoOrigen) {
 
 function generarVistaPrevia(clave) {
     const form = document.getElementById("formReporte");
-    actualizarCamposHoraFormulario(form);
 
-    if (!validarCamposHoraFormulario(form) || !validarCamposCatalogoFormulario(form) || !form.checkValidity()) {
+    if (!validarCamposCatalogoFormulario(form) || !form.checkValidity()) {
         form.reportValidity();
         return;
     }
 
     const formData = new FormData(form);
     const respuestas = [];
-    const valores = {};
+    const contexto = datosAutomaticosReporte();
+    const valores = { ...contexto };
 
     formularioActual.campos.forEach(campoConfig => {
-        const valorFinal = obtenerValorCampoReporte(form, formData, campoConfig);
+        const valorFinal = fuenteAutomatica(campoConfig) ? valorAutomatico(campoConfig, contexto) : obtenerValorCampoReporte(form, formData, campoConfig);
 
         valores[campoConfig.nombre_campo] = valorFinal || "";
         respuestas.push({
@@ -1011,11 +993,14 @@ function generarVistaPrevia(clave) {
     });
     valoresReporteActual[clave] = valores;
 
-    const mensajeTexto = formularioActual.plantilla
+    const mensajeBase = formularioActual.plantilla
         ? renderizarPlantillaWhatsApp(formularioActual.plantilla, clave, valores)
         : construirMensajeAutomatico(clave, respuestas);
+    const mensajeTexto = completarMensajeAutomatico(mensajeBase, formularioActual.plantilla, formularioActual.campos, contexto);
 
     vistaPreviaActual = {
+        ubicacion_id: formularioActual.ubicacion_id,
+        configuracion_id: formularioActual.configuracion_id,
         tipo_clave: clave,
         tipo_nombre: formularioActual.tipo.nombre,
         mensaje_whatsapp: mensajeTexto,
@@ -1024,6 +1009,26 @@ function generarVistaPrevia(clave) {
 
     registrarNavegacion("preview", { clave });
     renderizarVistaPrevia(clave, mensajeTexto);
+}
+
+function seleccionarEvidencia(input) {
+    if (vistaPreviaActual?.guardado || vistaPreviaActual?.enviando) return;
+    const archivo = input.files?.[0] || null;
+    if (!archivo) return; // Cancelar la cámara conserva la foto anterior.
+    const ayuda = document.getElementById("evidenciaAyuda");
+
+    if (archivo && !archivo.type.startsWith("image/")) {
+        input.value = "";
+        if (ayuda) ayuda.textContent = "Seleccione únicamente una imagen.";
+        return;
+    }
+
+    evidenciaActual = archivo;
+    if (vistaPreviaActual) vistaPreviaActual.fotoCompartir = null;
+    actualizarVistaFoto();
+    if (ayuda) {
+        ayuda.textContent = archivo ? `Foto seleccionada: ${archivo.name}` : "Máximo una foto. Se comprimirá antes de guardarse.";
+    }
 }
 
 function mostrarVistaPrevia(clave, opciones = {}) {
@@ -1038,17 +1043,27 @@ function mostrarVistaPrevia(clave, opciones = {}) {
 }
 
 function renderizarVistaPrevia(clave, mensajeTexto) {
-    appContent.className = "app-content";
+    appContent.className = "app-content preview-content";
     appContent.innerHTML = `
+        <div class="preview-scroll" tabindex="0" aria-label="Mensaje y evidencia">
         <div class="preview-card">
             <h3>Vista previa</h3>
-            <p>${mensajeTexto.replace(/\n/g, "<br>")}</p>
+            <p class="preview-message">${escaparNube(mensajeTexto)}</p>
         </div>
-
+        <div class="form-card evidencia-form-group">
+            <label for="evidenciaReporte">Tomar una foto <small>Opcional</small></label>
+            <input id="evidenciaReporte" type="file" accept="image/*" capture="environment" onchange="seleccionarEvidencia(this)" ${vistaPreviaActual?.guardado ? 'disabled' : ''}>
+            <small id="evidenciaAyuda">La foto se guardará con el reporte y se adjuntará al compartir.</small>
+            <img id="fotoVistaPrevia" alt="Foto adjunta al reporte" hidden>
+            <button class="btn-secondary-small" id="quitarFoto" onclick="quitarEvidencia()" hidden>Quitar foto</button>
+        </div>
+        </div>
+        <div class="preview-actions">
+        <small id="estadoEnvio" role="status">${vistaPreviaActual?.guardado ? 'Reporte guardado. Puede volver a compartirlo.' : 'Se guardará el reporte antes de compartir.'}</small>
         <button class="btn-main-small" id="btnWhatsApp" onclick="abrirWhatsApp()">
-            Abrir WhatsApp
+            ${vistaPreviaActual?.guardado ? 'Compartir en WhatsApp' : 'Guardar y abrir WhatsApp'}
         </button>
-
+        <div class="preview-navigation">
         <button class="btn-volver" onclick="editarReporteDesdeVistaPrevia('${clave}')">
             Editar
         </button>
@@ -1056,7 +1071,31 @@ function renderizarVistaPrevia(clave, mensajeTexto) {
         <button class="btn-menu-reporte" type="button" onclick="volverAlMenuReportes()">
             Menu
         </button>
+        </div></div>
     `;
+    actualizarVistaFoto();
+}
+
+function actualizarVistaFoto() {
+    const img = document.getElementById('fotoVistaPrevia');
+    const quitar = document.getElementById('quitarFoto');
+    if (!img) return;
+    img.hidden = !evidenciaActual;
+    quitar.hidden = !evidenciaActual || Boolean(vistaPreviaActual?.guardado);
+    if (!evidenciaActual) { img.removeAttribute('src'); return; }
+    const archivo = evidenciaActual;
+    const reader = new FileReader();
+    reader.onload = () => { if (img.isConnected && archivo === evidenciaActual) img.src = reader.result; };
+    reader.readAsDataURL(archivo);
+}
+
+function quitarEvidencia() {
+    if (vistaPreviaActual?.guardado || vistaPreviaActual?.enviando) return;
+    evidenciaActual = null;
+    if (vistaPreviaActual) vistaPreviaActual.fotoCompartir = null;
+    document.getElementById('evidenciaReporte').value = '';
+    document.getElementById('evidenciaAyuda').textContent = 'Sin foto adjunta.';
+    actualizarVistaFoto();
 }
 
 function editarReporteDesdeVistaPrevia(clave) {
@@ -1072,6 +1111,7 @@ function restaurarValoresReporte(clave) {
     }
 
     formularioActual.campos.forEach(campoConfig => {
+        if (fuenteAutomatica(campoConfig)) return;
         const campo = obtenerCampoFormulario(form, campoConfig.nombre_campo);
 
         if (!campo) {
@@ -1214,18 +1254,109 @@ function obtenerHoraActual12() {
     }).toLowerCase();
 }
 
-function abrirWhatsApp() {
-    if (!vistaPreviaActual) {
-        return;
-    }
-
-    guardarHistorialReporte(vistaPreviaActual);
-    window.open(`https://wa.me/?text=${encodeURIComponent(vistaPreviaActual.mensaje_whatsapp)}`, "_blank");
-
+async function abrirWhatsApp() {
+    if (!vistaPreviaActual || vistaPreviaActual.enviando) return;
+    const reporte = vistaPreviaActual;
+    const yaGuardado = Boolean(reporte.guardado);
     const btnWhatsApp = document.getElementById("btnWhatsApp");
-    if (btnWhatsApp) {
-        btnWhatsApp.textContent = "Registro guardado";
+    const estado = document.getElementById('estadoEnvio');
+    reporte.enviando = true;
+    document.querySelectorAll('.preview-actions button, .evidencia-form-group input, #quitarFoto').forEach(el => el.disabled = true);
+    if (btnWhatsApp) btnWhatsApp.textContent = yaGuardado ? 'Abriendo…' : 'Guardando reporte…';
+    try {
+        if (!yaGuardado) {
+            await prepararFotoCompartir(reporte, evidenciaActual);
+            await guardarReporteEnSupabase(reporte, evidenciaActual);
+            guardarHistorialReporte(reporte);
+            if (estado) estado.textContent = 'Reporte guardado. Elija WhatsApp y confirme el envío.';
+            // El navegador requiere un clic reciente para compartir; la subida puede tardar.
+            if (!esAndroidNativo()) {
+                if (estado) estado.textContent = 'Reporte guardado. Pulse Compartir en WhatsApp para continuar.';
+                return;
+            }
+        }
+        await compartirReporte(reporte);
+        if (estado) estado.textContent = 'Reporte guardado. Confirme el envío dentro de WhatsApp.';
+    } catch (error) {
+        const cancelado = error.name === 'AbortError' || /cancel/i.test(error.message);
+        if (estado) estado.textContent = reporte.guardado
+            ? (cancelado ? 'Se canceló compartir. El reporte está guardado; puede volver a intentarlo.' : `Reporte guardado; no se pudo compartir: ${error.message}`)
+            : `No se pudo guardar: ${error.message}. Revise su conexión y la asignación de unidad.`;
+    } finally {
+        reporte.enviando = false;
+        document.querySelectorAll('.preview-actions button').forEach(el => el.disabled = false);
+        const input = document.getElementById('evidenciaReporte');
+        if (input) input.disabled = Boolean(reporte.guardado);
+        const quitar = document.getElementById('quitarFoto');
+        if (quitar) { quitar.disabled = false; quitar.hidden = !evidenciaActual || Boolean(reporte.guardado); }
+        if (btnWhatsApp) btnWhatsApp.textContent = reporte.guardado ? 'Compartir en WhatsApp' : 'Reintentar guardado';
     }
+}
+
+async function obtenerSesionSupabase() {
+    const { data: { session }, error } = await clienteNube().auth.getSession();
+    if (error) throw error;
+    if (!session || session.user.is_anonymous || session.user.id !== nube.usuario?.id) {
+        throw new Error("Inicie sesión con su cuenta para enviar reportes.");
+    }
+    return session;
+}
+
+async function comprimirEvidencia(archivo) {
+    if (!archivo) return null;
+    const imagen = await createImageBitmap(archivo);
+    const maximo = 1600;
+    const escala = Math.min(1, maximo / Math.max(imagen.width, imagen.height));
+    const lienzo = document.createElement("canvas");
+    lienzo.width = Math.round(imagen.width * escala);
+    lienzo.height = Math.round(imagen.height * escala);
+    lienzo.getContext("2d").drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+    const blob = await new Promise(resolve => lienzo.toBlob(resolve, "image/jpeg", 0.78));
+    imagen.close();
+    if (!blob) throw new Error("No fue posible preparar la evidencia.");
+    return blob;
+}
+
+async function guardarReporteEnSupabase(reporte, evidencia) {
+    if (reporte.guardado) return;
+    const sesion = await obtenerSesionSupabase();
+    const idReporte = reporte.id || (reporte.id = crypto.randomUUID());
+    const existente = await resultadoNube(clienteNube().from('reportes').select('id').eq('id', idReporte).limit(1));
+    if (existente.length) { reporte.guardado = true; return; }
+    let evidenciaRuta = null;
+    let evidenciaNombre = null;
+
+    if (evidencia) {
+        const archivoComprimido = reporte.fotoCompartir || await comprimirEvidencia(evidencia);
+        evidenciaRuta = `${sesion.user.id}/${idReporte}/evidencia.jpg`;
+        evidenciaNombre = "evidencia.jpg";
+        const { error: errorArchivo } = await window.supabaseClient.storage
+            .from("evidencias")
+            .upload(evidenciaRuta, archivoComprimido, { contentType: "image/jpeg", upsert: false });
+        if (errorArchivo && String(errorArchivo.statusCode) !== '409') throw errorArchivo;
+    }
+
+    const { error: errorReporte } = await window.supabaseClient.from("reportes").insert({
+        id: idReporte,
+        creado_por: sesion.user.id,
+        ubicacion_id: reporte.ubicacion_id,
+        configuracion_id: reporte.configuracion_id,
+        tipo_clave: reporte.tipo_clave,
+        tipo_nombre: reporte.tipo_nombre,
+        mensaje_whatsapp: reporte.mensaje_whatsapp,
+        valores: reporte.valores,
+        evidencia_ruta: evidenciaRuta,
+        evidencia_nombre: evidenciaNombre
+    });
+
+    if (errorReporte) {
+        // Si se perdió la respuesta, comprobar el registro antes de borrar su foto.
+        const { data: confirmado, error: errorConsulta } = await clienteNube().from('reportes').select('id').eq('id', idReporte).limit(1);
+        if (confirmado?.length) { reporte.guardado = true; return; }
+        if (!errorConsulta && evidenciaRuta) await window.supabaseClient.storage.from("evidencias").remove([evidenciaRuta]);
+        throw errorReporte;
+    }
+    reporte.guardado = true;
 }
 
 function guardarHistorialReporte(reporte) {
@@ -1239,50 +1370,9 @@ function guardarHistorialReporte(reporte) {
     guardarHistorial(historial.slice(0, 200));
 }
 
-function mostrarLogin(opciones = {}) {
-    registrarNavegacion("login", {}, opciones);
-    cambiarHeader("ADMINISTRADOR", "Inicio de sesión local");
-    appContent.className = "app-content";
-    appContent.innerHTML = `
-        <form id="formLoginAdmin" class="login-card">
-            <label>Usuario</label>
-            <input type="text" name="usuario" placeholder="Usuario" autocomplete="username" required>
-
-            <label>Contraseña</label>
-            <input type="password" name="password" placeholder="Contraseña" autocomplete="current-password" required>
-
-            <button type="submit" class="btn-main-small">Ingresar</button>
-        </form>
-
-        <button class="btn-volver" onclick="volverLogico()">Volver</button>
-    `;
-
-    document.getElementById("formLoginAdmin").addEventListener("submit", iniciarSesionAdmin);
-}
-
-async function iniciarSesionAdmin(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const usuario = formData.get("usuario");
-    const password = formData.get("password");
-    const passwordHash = await generarHashSha256(password);
-
-    if (usuario !== ADMIN_USUARIO || passwordHash !== ADMIN_PASSWORD_HASH) {
-        mostrarMensajeLogin("Usuario o contraseña incorrectos.");
-        return;
-    }
-
-    adminActual = { usuario: ADMIN_USUARIO, nombre: "Administrador" };
-    localStorage.setItem("rv_admin_sesion", "activa");
-    mostrarPanelAdmin();
-}
-
-async function generarHashSha256(texto) {
-    const bytes = new TextEncoder().encode(texto);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-    return Array.from(new Uint8Array(hashBuffer))
-        .map(byte => byte.toString(16).padStart(2, "0"))
-        .join("");
+function mostrarLogin() {
+    if (sesionAdminActiva()) return mostrarPanelAdmin();
+    mostrarAccesoNube();
 }
 
 function mostrarMensajeLogin(mensaje) {
@@ -1299,35 +1389,11 @@ function mostrarMensajeLogin(mensaje) {
 }
 
 function mostrarPanelAdmin(opciones = {}) {
-    registrarNavegacion("adminPanel", {}, opciones);
-    cambiarHeader("ADMINISTRADOR", "Configuración local offline");
-    appContent.className = "app-content admin-panel";
-    appContent.innerHTML = `
-        <button class="admin-card" type="button" onclick="mostrarAdminFormularios()">
-            <span>Formularios</span>
-            <small>Tipos de reporte, campos y plantilla de WhatsApp</small>
-        </button>
-
-        <button class="admin-card" type="button" onclick="mostrarAdminCatalogos()">
-            <span>Catálogos</span>
-            <small>Listas disponibles para los formularios importados</small>
-        </button>
-
-        <button class="admin-card" type="button" onclick="mostrarHistorialAdmin()">
-            <span>Historial</span>
-            <small>Solo tipo de registro y fecha/hora</small>
-        </button>
-
-        <button class="admin-card" type="button" onclick="mostrarAdminDatos()">
-            <span>Datos</span>
-            <small>Exportar, importar o restaurar configuración</small>
-        </button>
-
-        <button class="btn-volver" onclick="cerrarSesionAdmin()">Cerrar sesión</button>
-    `;
+    return mostrarDashboardAdmin(opciones);
 }
 
 function mostrarAdminFormularios(opciones = {}) {
+    if (!requiereEditorNube()) return;
     registrarNavegacion("adminFormularios", {}, opciones);
     const configuracion = obtenerConfiguracion();
     adminTipoReporteSeleccionado = adminTipoReporteSeleccionado || configuracion.tiposReportes[0]?.id;
@@ -1341,7 +1407,7 @@ function renderAdminFormularios() {
 
     adminTipoReporteSeleccionado = tipo?.id || null;
 
-    cambiarHeader("Formularios", "Diseño local del mensaje");
+    cambiarHeader("Formularios", `${nube.ubicacion.nombre} · Borrador sin publicar`);
     appContent.className = "app-content admin-formularios";
 
     const opcionesTipos = configuracion.tiposReportes.filter(item => item.activo).map(item => `
@@ -1448,6 +1514,8 @@ function renderEditorPlantillaAdmin(tipo) {
         "fecha",
         "hora",
         "tipo_reporte",
+        "vigilante",
+        "unidad",
         ...tipo.campos
             .filter(campo => campo.activo)
             .sort((a, b) => a.orden - b.orden)
@@ -1472,7 +1540,7 @@ function renderEditorPlantillaAdmin(tipo) {
 }
 
 function sincronizarPlantillaConCampos(tipo) {
-    const variablesEncabezado = new Set(["tipo_reporte", "fecha", "hora"]);
+    const variablesEncabezado = new Set(["tipo_reporte", "fecha", "hora", "vigilante", "guardia", "nombre_guardia", "nombre_vigilante", "unidad", "ubicacion"]);
     const camposActivos = tipo.campos
         .filter(campo => campo.activo)
         .filter(campo => !esCampoHoraFija(campo))
@@ -1670,6 +1738,17 @@ function renderEditorCampoAdmin(tipo) {
                     `).join("")}
                 </select>
             </div>
+            <div class="form-group">
+                <label>Completar con</label>
+                <select name="fuente_dato">
+                    <option value="" ${!campo.fuente_dato ? 'selected' : ''}>Detectar según el campo</option>
+                    <option value="vigilante" ${campo.fuente_dato === 'vigilante' ? 'selected' : ''}>Nombre del vigilante conectado</option>
+                    <option value="unidad" ${campo.fuente_dato === 'unidad' ? 'selected' : ''}>Unidad de trabajo autorizada</option>
+                    <option value="hora" ${campo.fuente_dato === 'hora' ? 'selected' : ''}>Hora del sistema</option>
+                    <option value="manual" ${campo.fuente_dato === 'manual' ? 'selected' : ''}>Captura manual (otros datos)</option>
+                </select>
+                <small>Hora, guardia/vigilante y unidad siempre se completan automáticamente. Use esta opción para campos con otros nombres.</small>
+            </div>
             <div class="form-group" data-config-campo="opciones">
                 <label>Opciones</label>
                 <textarea name="opciones" rows="3" placeholder="Opción 1|Opción 2|Opción 3">${campo.opciones || ""}</textarea>
@@ -1781,6 +1860,7 @@ function guardarCampoAdmin(event) {
     campo.etiqueta = etiqueta;
     campo.nombre_campo = nombreCampo;
     campo.tipo_campo = formData.get("tipo_campo");
+    campo.fuente_dato = formData.get('fuente_dato') || '';
     campo.opciones = campo.tipo_campo === "select" ? formData.get("opciones") : "";
     campo.catalogo_origen = campo.tipo_campo === "catalogo" ? formData.get("catalogo_origen") : "";
     campo.obligatorio = formData.get("obligatorio") === "on";
@@ -1873,6 +1953,7 @@ function insertarVariablePlantilla(variable) {
 }
 
 function mostrarAdminCatalogos(opciones = {}) {
+    if (!requiereEditorNube()) return;
     registrarNavegacion("adminCatalogos", {}, opciones);
     const configuracion = obtenerConfiguracion();
     const catalogosActivos = obtenerCatalogosDisponibles();
@@ -1905,7 +1986,7 @@ function renderAdminCatalogos() {
 
         ${catalogo ? renderEditorCatalogoAdmin(configuracion, catalogo) : `<div class="info-card">No hay catálogos activos.</div>`}
 
-        <button class="btn-secondary-small" onclick="guardarJsonBaseActualizado()">Descargar JSON base actualizado</button>
+        <button class="btn-secondary-small" onclick="mostrarAvanzada()">Respaldo y herramientas avanzadas</button>
         <button class="btn-volver" onclick="volverLogico()">Volver</button>
     `;
 
@@ -2052,6 +2133,7 @@ function siguienteIdItemCatalogo(items = []) {
 }
 
 async function guardarJsonBaseActualizado() {
+    if (!requerirAvanzada() || !requiereEditorNube()) return;
     const contenido = JSON.stringify(obtenerConfiguracion(), null, 2);
 
     if ("showSaveFilePicker" in window) {
@@ -2080,24 +2162,7 @@ async function guardarJsonBaseActualizado() {
 }
 
 function mostrarHistorialAdmin(opciones = {}) {
-    registrarNavegacion("adminHistorial", {}, opciones);
-    const historial = obtenerHistorial();
-    cambiarHeader("Historial", "Registros locales");
-    appContent.className = "app-content admin-formularios";
-    appContent.innerHTML = `
-        <div class="admin-list">
-            ${historial.map(item => `
-                <div class="admin-field-card">
-                    <div>
-                        <strong>${item.tipo_nombre}</strong>
-                        <span>${new Date(item.fecha).toLocaleString("es-MX")}</span>
-                    </div>
-                </div>
-            `).join("") || `<div class="info-card">Aún no hay historial local.</div>`}
-        </div>
-        <button class="btn-secondary-small" onclick="limpiarHistorial()">Limpiar historial</button>
-        <button class="btn-volver" onclick="volverLogico()">Volver</button>
-    `;
+    return mostrarHistorico(opciones);
 }
 
 function limpiarHistorial() {
@@ -2108,14 +2173,17 @@ function limpiarHistorial() {
 }
 
 function mostrarAdminDatos(opciones = {}) {
+    if (!requerirAvanzada()) return;
+    if (!requiereEditorNube()) return;
     registrarNavegacion("adminDatos", {}, opciones);
     cambiarHeader("Datos", "Respaldo local");
     appContent.className = "app-content admin-formularios";
     appContent.innerHTML = `
         <div class="info-card">
-            La configuración vive en este dispositivo. Exporte el JSON para copiarla a otros celulares.
+            Este es el borrador de la ubicación seleccionada. Puede importar una configuración existente o exportar un respaldo. Después vuelva al panel y pulse Publicar para enviarla a los vigilantes.
         </div>
         <button class="btn-main-small" onclick="exportarConfiguracion()">Exportar configuración</button>
+        <button class="btn-secondary-small" onclick="recuperarConfiguracionAnterior()">Recuperar configuración de la app anterior</button>
         <label class="btn-secondary-small file-button">
             Importar configuración
             <input type="file" accept="application/json" onchange="importarConfiguracion(event, { destino: 'adminDatos' })">
@@ -2124,17 +2192,15 @@ function mostrarAdminDatos(opciones = {}) {
     `;
 }
 
-function exportarConfiguracion() {
+async function exportarConfiguracion() {
+    if (!requerirAvanzada() || !requiereEditorNube()) return;
     const blob = new Blob([JSON.stringify(obtenerConfiguracion(), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "configuracion-reportes-vigilancia.json";
-    link.click();
-    URL.revokeObjectURL(url);
+    await ejecutarNube(() => entregarArchivoAdmin(blob, 'configuracion-reportes-vigilancia.json', 'Respaldo de configuración'));
 }
 
 function importarConfiguracion(event, opciones = {}) {
+    if (!requerirAvanzada()) return;
+    if (!requiereEditorNube()) return;
     const file = event.target.files[0];
 
     if (!file) {
@@ -2142,7 +2208,9 @@ function importarConfiguracion(event, opciones = {}) {
     }
 
     const reader = new FileReader();
+    const claveBorrador = STORAGE_CONFIG_KEY;
     reader.onload = () => {
+        if (!avanzadaActiva() || STORAGE_CONFIG_KEY !== claveBorrador) return;
         try {
             const configuracion = JSON.parse(reader.result);
             if (!Array.isArray(configuracion.tiposReportes)) {
@@ -2166,10 +2234,13 @@ function importarConfiguracion(event, opciones = {}) {
     reader.readAsText(file);
 }
 
-function cerrarSesionAdmin() {
-    adminActual = null;
-    localStorage.removeItem("rv_admin_sesion");
-    mostrarInicio();
+async function cerrarSesionAdmin() {
+    try {
+        await resultadoNube(clienteNube().auth.signOut({ scope: 'local' }));
+        limpiarContextoNube();
+        history.replaceState({ vista: 'login', params: {} }, '');
+        mostrarAccesoNube();
+    } catch (error) { alert(`No se pudo cerrar la sesión: ${error.message}`); }
 }
 
 if ("serviceWorker" in navigator) {
