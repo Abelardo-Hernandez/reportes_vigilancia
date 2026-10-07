@@ -23,6 +23,7 @@ async function app(t) {
     const datos = {
         ubicaciones: [{ id: 'norte', nombre: 'Planta Norte', activa: true }, { id: 'sur', nombre: 'Planta Sur', activa: true }],
         configuraciones_ubicacion: [{ id: 'pub1', ubicacion_id: 'norte', version: 1, contenido: contenido('Rondín Norte') }, { id: 'pub2', ubicacion_id: 'sur', version: 1, contenido: contenido('Rondín Sur') }],
+        vigilantes: [{ id: 'ana', nombre: 'Ana', ubicacion_id: 'norte', activo: true }, { id: 'pedro', nombre: 'Pedro', ubicacion_id: 'norte', activo: true }],
         asignaciones: [], reportes: []
     };
     w.supabaseClient = {
@@ -71,8 +72,84 @@ async function app(t) {
     return { w, state, datos, avisos };
 }
 
+test('selector de unidades muestra solo las acciones de la elegida y abre su configuración', async t => {
+    const { w, state, datos } = await app(t);
+    state.user = { id: 'cuenta', email: 'admin@example.test' };
+    state.role = 'admin';
+    await w.cargarCuentaNube();
+    await w.mostrarGestionNube();
+    const selector = w.document.getElementById('unidadGestionNube');
+    const detalle = w.document.getElementById('listaUbicacionesNube');
+    assert.equal(selector.options.length, 3);
+    assert.equal(detalle.querySelectorAll('button').length, 0);
+    selector.value = 'norte';
+    selector.dispatchEvent(new w.Event('change'));
+    assert.equal(detalle.querySelector('strong').textContent, 'Planta Norte');
+    assert.equal(detalle.querySelectorAll('.unit-actions > button').length, 3);
+    selector.value = 'sur';
+    selector.dispatchEvent(new w.Event('change'));
+    assert.equal(detalle.querySelector('strong').textContent, 'Planta Sur');
+    assert.equal(detalle.querySelectorAll('.unit-actions').length, 1);
+    await detalle.querySelector('button').onclick();
+    assert.equal(w.prueba.nube.ubicacion.id, 'sur');
+    assert.match(w.prueba.key, /borrador_cuenta_sur/);
+    datos.ubicaciones[1].activa = false;
+    await w.mostrarGestionNube({ unidad: 'sur' });
+    assert.equal(w.document.getElementById('unidadGestionNube').value, 'sur');
+    assert.equal(w.document.querySelector('.unit-actions button').disabled, true);
+    assert.match(w.document.querySelector('.unit-actions').textContent, /Activar/);
+    datos.ubicaciones = [];
+    await w.mostrarGestionNube();
+    assert.equal(w.document.getElementById('unidadGestionNube').disabled, true);
+    assert.match(w.document.getElementById('listaUbicacionesNube').textContent, /Aún no hay unidades/);
+});
+
+test('Excel muestra fechas legibles en CDMX y convierte cambios de día', async t => {
+    const { w } = await app(t);
+    assert.equal(w.fechaExcelHistorico('2026-10-03T17:50:49.677944+00:00'), '2026-10-03 11:50');
+    assert.equal(w.fechaExcelHistorico('2026-10-03T02:05:00Z'), '2026-10-02 20:05');
+    assert.equal(w.fechaExcelHistorico('2026-10-03T06:00:00Z'), '2026-10-03 00:00');
+    assert.equal(w.fechaExcelHistorico(null), '');
+    assert.equal(w.fechaExcelHistorico('invalida'), '');
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(await w.crearExcelHistorico([
+        { id: 'fecha', creado_en: '2026-10-03T17:50:49.677944+00:00', valores: {} }
+    ], [], [], { corte: '2026-10-03T02:05:00Z' }));
+    assert.equal(libro.getWorksheet('Reportes').getCell('A2').value, '2026-10-03 11:50');
+    assert.equal(libro.getWorksheet('Reportes').getCell('A1').value, 'Fecha de recepción (CDMX)');
+    assert.equal(libro.worksheets.length, 1);
+});
+
+test('Excel separa tipos, conserva campos históricos y excluye datos técnicos', async t => {
+    const { w } = await app(t);
+    const base = { creado_en: '2026-10-03T17:50:00Z', creado_por: 'uuid-privado', configuracion_id: 'config-privada', evidencia_ruta: 'ruta-privada', mensaje_whatsapp: 'texto duplicado' };
+    const reportes = [
+        { ...base, tipo_clave: 'entrada', tipo_nombre: 'Entrada', valores: { vigilante: 'Ana', unidad: 'Norte', visitante: 'Luis', vigilante_id: 'uuid-privado', registrado_dispositivo: 'timestamp' }, formulario_snapshot: { campos: [{ nombre_campo: 'visitante', etiqueta: 'Nombre del visitante' }] } },
+        { ...base, tipo_clave: 'entrada', tipo_nombre: 'Entrada anterior', valores: { vigilante: 'Eva', visitante: 'Pedro', motivo: 'Entrega' }, formulario_snapshot: { campos: [{ nombre_campo: 'visitante', etiqueta: 'Visitante' }, { nombre_campo: 'motivo', etiqueta: 'Motivo de visita' }] } },
+        { ...base, tipo_clave: 'rondin', tipo_nombre: 'Rondín', valores: { observaciones: 'x'.repeat(65000) }, formulario_snapshot: { campos: [{ nombre_campo: 'observaciones', etiqueta: 'Observaciones' }] } },
+        { ...base, tipo_clave: 'otro', tipo_nombre: 'Entrada', valores: { placas: 'ABC' } },
+        { ...base, tipo_clave: 'vehiculo', tipo_nombre: 'Entrada/vehículo: nombre demasiado largo para Excel', valores: {} }
+    ];
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(await w.crearExcelHistorico(reportes, [], [{ id: 'uuid-privado', nombre: 'Mario' }], {}));
+    assert.equal(libro.worksheets.length, 4);
+    const entrada = libro.getWorksheet('Entrada');
+    assert.deepEqual(entrada.getRow(1).values.slice(1), ['Fecha de recepción (CDMX)', 'Vigilante', 'Unidad', 'Nombre del visitante', 'Motivo de visita']);
+    assert.equal(entrada.getCell('D2').value, 'Luis');
+    assert.equal(entrada.getCell('E3').value, 'Entrega');
+    assert.equal(entrada.getCell('B2').value, 'Ana');
+    assert.equal(entrada.getCell('C2').value, 'Norte');
+    const rondin = libro.getWorksheet('Rondín');
+    assert.equal(rondin.getCell('B2').value, 'Mario');
+    assert.equal(['D2','E2','F2'].map(c => rondin.getCell(c).value).join(''), 'x'.repeat(65000));
+    assert.ok(libro.getWorksheet('Entrada (2)'));
+    assert.ok(libro.worksheets.every(h => h.name.length <= 31 && !/[\\/?*\[\]:]/.test(h.name)));
+    const contenido = JSON.stringify(libro.worksheets.map(h => h.getSheetValues()));
+    assert.doesNotMatch(contenido, /uuid-privado|config-privada|ruta-privada|texto duplicado|registrado_dispositivo/);
+});
+
 test('inicio sin sesión, permisos locales y cierre de sesión', async t => {
-    const { w, state } = await app(t);
+    const { w, state, datos } = await app(t);
     await w.inicializarAplicacion();
     assert.match(w.document.body.textContent, /Iniciar sesión/);
     w.localStorage.setItem('rv_admin_sesion','activa');
@@ -111,8 +188,10 @@ test('borradores por ubicación, publicación y reportes con versión publicada'
     state.role = 'guardia';
     await w.cargarCuentaNube();
     await w.seleccionarUbicacionNube('norte',false);
+    w.prueba.nube.vigilante = datos.vigilantes[0];
     w.mostrarMenuReportes();
     assert.match(w.document.body.textContent,/Rondín modificado/);
+    w.prueba.nube.vigilante = datos.vigilantes[0];
     w.mostrarReporte('rondin');
     w.generarVistaPrevia('rondin');
     assert.equal(w.prueba.preview.ubicacion_id,'norte');
@@ -147,6 +226,7 @@ test('hora e identidad automáticas, unidad autorizada y vista previa con texto 
     w.mostrarInicio();
     assert.equal(w.document.getElementById('ubicacionNube').value,'norte');
     await w.seleccionarUbicacionNube('norte',false);
+    w.prueba.nube.vigilante = datos.vigilantes[0];
     w.mostrarReporte('rondin');
     const form = w.document.getElementById('formReporte');
     assert.equal(form.querySelectorAll('[data-hora-selector]').length,0);
@@ -161,7 +241,7 @@ test('hora e identidad automáticas, unidad autorizada y vista previa con texto 
     const reporte = w.prueba.preview;
     assert.equal(reporte.valores.nombre,'Ana');
     assert.equal(reporte.valores.unidad,'Planta Norte');
-    assert.equal(reporte.valores.vigilante_id,'cuenta');
+    assert.equal(reporte.valores.vigilante_id,'ana');
     assert.notEqual(reporte.valores.hora,'01:01 inventada');
     assert.equal(reporte.valores.hora,new w.Date(reporte.valores.registrado_dispositivo).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase());
     assert.equal(w.document.querySelector('.preview-message img'),null);
@@ -174,10 +254,11 @@ test('hora e identidad automáticas, unidad autorizada y vista previa con texto 
 });
 
 test('foto subida antes de compartir, cancelar y reintentar sin duplicar', async t => {
-    const { w, state } = await app(t);
+    const { w, state, datos } = await app(t);
     state.user = { id: 'cuenta', email: 'ana@example.test' };
     await w.cargarCuentaNube();
     await w.seleccionarUbicacionNube('norte',false);
+    w.prueba.nube.vigilante = datos.vigilantes[0];
     w.mostrarReporte('rondin'); w.generarVistaPrevia('rondin');
     const foto = new w.File(['foto original'], 'camara.jpg', { type: 'image/jpeg' });
     w.seleccionarEvidencia({ files: [foto] });
@@ -213,9 +294,10 @@ test('foto subida antes de compartir, cancelar y reintentar sin duplicar', async
 });
 
 test('no se abre compartir si falla el guardado y web conserva el clic para compartir', async t => {
-    const { w, state } = await app(t);
+    const { w, state, datos } = await app(t);
     state.user = { id: 'cuenta', email: 'ana@example.test' };
     await w.cargarCuentaNube(); await w.seleccionarUbicacionNube('norte',false);
+    w.prueba.nube.vigilante = datos.vigilantes[0];
     w.mostrarReporte('rondin'); w.generarVistaPrevia('rondin');
     let abierto = 0;
     w.open = () => { abierto++; };
@@ -232,7 +314,7 @@ test('no se abre compartir si falla el guardado y web conserva el clic para comp
 });
 
 test('el acceso avanzado exige administrador, código y caduca sin persistirse', async t => {
-    const { w, state } = await app(t);
+    const { w, state, datos } = await app(t);
     state.user = { id: 'cuenta', email: 'ana@example.test' };
     await w.cargarCuentaNube();
     assert.equal(await w.validarCodigoAvanzado('1a2b3c*'),false);
@@ -267,11 +349,53 @@ test('histórico paginado, filtros y Excel completo con mensajes largos como tex
     assert.throws(() => w.limitesFechasHistorico('2026-01-21','2026-01-20'),/rango de fechas/);
     const buffer = await w.crearExcelHistorico(todos,datos.ubicaciones,[{id:'cuenta',nombre:'Ana'}],filtros);
     const libro = new ExcelJS.Workbook(); await libro.xlsx.load(Buffer.from(buffer));
-    assert.equal(libro.getWorksheet('Reportes').rowCount,1203);
-    const respuestas = libro.getWorksheet('Respuestas');
-    assert.equal(respuestas.getRow(3).getCell(5).value,'=1+1');
-    assert.equal(respuestas.getRow(3).getCell(5).type,ExcelJS.ValueType.String);
-    const mensajes = libro.getWorksheet('Mensajes');
-    assert.equal([2,3,4].map(i => mensajes.getRow(i).getCell(3).value).join('').length,65000);
-    assert.equal(libro.getWorksheet('Consulta').getRow(9).getCell(2).value,1202);
+    const hoja = libro.getWorksheet('Rondín');
+    assert.equal(hoja.rowCount,1203);
+    assert.equal(hoja.getCell('D2').value,'=1+1');
+    assert.equal(hoja.getCell('D2').type,ExcelJS.ValueType.String);
+    assert.equal(hoja.getCell('B2').value,'Ana');
+    assert.equal(libro.worksheets.length,1);
+});
+
+test('shared unit account requires guard selection, changes guard at relief and exports names', async t => {
+    const { w, state, datos, avisos } = await app(t);
+    state.user = { id: 'cuenta', email: 'unidad@example.test' };
+    datos.ubicaciones.splice(1);
+    await w.cargarCuentaNube();
+    w.mostrarInicio();
+    await new Promise(resolve => setImmediate(resolve));
+    const selector = w.document.getElementById('vigilanteNube');
+    assert.equal(selector.options.length,3);
+    assert.equal(selector.value,'');
+    await w.document.getElementById('nuevoReporteNube').onclick({currentTarget:w.document.getElementById('nuevoReporteNube')});
+    assert.match(avisos.at(-1), /Seleccione el vigilante/);
+    selector.value = 'pedro';
+    await w.document.getElementById('nuevoReporteNube').onclick({currentTarget:w.document.getElementById('nuevoReporteNube')});
+    w.mostrarReporte('rondin'); w.generarVistaPrevia('rondin');
+    assert.equal(w.prueba.preview.valores.vigilante,'Pedro');
+    assert.match(w.prueba.preview.mensaje_whatsapp,/Pedro/);
+    await w.guardarReporteEnSupabase(w.prueba.preview,null);
+    assert.equal(state.insertados[0].vigilante_id,'pedro');
+    w.mostrarInicio();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(w.document.getElementById('vigilanteNube').value,'');
+    w.document.getElementById('vigilanteNube').value = 'ana';
+    await w.document.getElementById('nuevoReporteNube').onclick({currentTarget:w.document.getElementById('nuevoReporteNube')});
+    w.mostrarReporte('rondin'); w.generarVistaPrevia('rondin');
+    await w.guardarReporteEnSupabase(w.prueba.preview,null);
+    assert.equal(state.insertados[1].vigilante_id,'ana');
+    datos.reportes.push(...state.insertados.map((r,i) => ({...r,creado_en:'2026-10-07T17:00:00Z',vigilante_nombre:i ? 'Ana' : 'Pedro'})));
+    const { data: filtrados } = await w.consultaHistorico({vigilante:'pedro',corte:'2026-10-08'},0,50);
+    assert.equal(filtrados.length,1);
+    assert.equal(filtrados[0].vigilante_nombre,'Pedro');
+    const { data: porCuenta } = await w.consultaHistorico({vigilante:'cuenta:cuenta',corte:'2026-10-08'},0,50);
+    assert.equal(porCuenta.length,2);
+    const buffer = await w.crearExcelHistorico(datos.reportes,datos.ubicaciones,[],{});
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(buffer);
+    const hoja = libro.worksheets[0];
+    assert.equal(hoja.getCell('B1').value,'Vigilante');
+    assert.equal(hoja.getCell('B2').value,'Pedro');
+    assert.equal(hoja.getCell('B3').value,'Ana');
+    assert.ok(hoja.autoFilter);
 });

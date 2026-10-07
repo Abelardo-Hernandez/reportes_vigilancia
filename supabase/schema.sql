@@ -98,16 +98,11 @@ create or replace function public.eliminar_reportes_vencidos()
 returns void
 language plpgsql
 security definer
-set search_path = public, storage
+set search_path = ''
 as $$
 begin
-    delete from storage.objects
-    where bucket_id = 'evidencias'
-      and name in (
-          select evidencia_ruta from public.reportes
-          where creado_en < now() - interval '15 days' and evidencia_ruta is not null
-      );
-
-    delete from public.reportes where creado_en < now() - interval '15 days';
+    -- Storage exige su API: la limpieza completa se realiza en la Edge Function.
+    raise exception 'Active limpieza_reportes.sql y la Edge Function limpiar-reportes; consulte LIMPIEZA.md';
 end;
 $$;
+revoke all on function public.eliminar_reportes_vencidos() from public, anon, authenticated;

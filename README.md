@@ -3,7 +3,21 @@
 App de vigilancia con administración central en Supabase y reportes para WhatsApp.
 Administrador y vigilante utilizan la misma app con permisos diferentes.
 
+## Vigilantes por unidad
+
+Antes de actualizar la app, ejecutar [vigilantes_por_unidad.sql](supabase/vigilantes_por_unidad.sql)
+después de `multiubicacion.sql`. El administrador enlaza el correo de acceso a
+la unidad y registra sus vigilantes. Cada persona selecciona su nombre al entrar
+a reportar y en cada relevo. El nombre queda guardado en el reporte y en la columna
+Vigilante de Excel, que permite filtrar. Los reportes anteriores se conservan.
+Una cuenta compartida identifica al autor por selección, sin autenticarlo individualmente.
+El APK anterior requiere una nueva compilación para incluir estos cambios.
+
 ## Activación de la nueva versión
+
+Para activar o corregir la retención de 15 días, seguir
+[supabase/LIMPIEZA.md](supabase/LIMPIEZA.md). La limpieza utiliza una Edge Function
+y la API de Storage; el Cron actualizado requiere desplegar esa función primero.
 
 Seguir [supabase/ACTIVACION.md](supabase/ACTIVACION.md) para instalar la migración,
 crear el primer administrador y asignar vigilantes a sus ubicaciones.
@@ -11,7 +25,13 @@ La actualización necesita activar el SQL antes de utilizarse en los teléfonos.
 
 ## Version
 
-Actual: `2.2.0`
+Actual: `2.3.0`
+
+- Estilo unificado en acceso, selección de unidad y formularios.
+- Selector de unidades con acciones para la unidad elegida.
+- Botón destacado para tomar o cambiar la foto del reporte.
+- Excel por tipo de reporte, con campos del formulario, vigilante y fecha en horario CDMX.
+- APK firmado: `PT-Reportes-v2.3.0.apk`.
 
 - Panel global organizado por tareas y unidad seleccionada.
 - Herramientas avanzadas con código adicional, válidas durante 10 minutos por sesión.

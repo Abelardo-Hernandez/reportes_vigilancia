@@ -1,0 +1,70 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+
+test('shared account reports distinguish active guards and preserve historical names', async t => {
+    const db = new PGlite();
+    t.after(() => db.close());
+    await db.exec(`
+      create role anon; create role authenticated;
+      create schema auth; create schema storage;
+      create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
+      create function auth.uid() returns uuid language sql stable as
+        $$select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid$$;
+      grant usage on schema public, auth, storage to authenticated, anon;
+      grant execute on function auth.uid() to authenticated, anon;
+      create table storage.buckets(id text primary key, name text, public boolean);
+      create table storage.objects(id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+      alter table storage.objects enable row level security;
+      create function storage.foldername(text) returns text[] language sql as $$select string_to_array($1, '/')$$;
+    `);
+    await db.exec(await readFile('supabase/schema.sql', 'utf8'));
+    await db.exec(await readFile('supabase/multiubicacion.sql', 'utf8'));
+    const admin = '00000000-0000-0000-0000-000000000001';
+    const cuenta = '00000000-0000-0000-0000-000000000002';
+    await db.query('insert into auth.users(id) values($1),($2)', [admin, cuenta]);
+    await db.query("update perfiles set rol='admin' where id=$1", [admin]);
+    const unidad = (await db.query("insert into ubicaciones(nombre) values('Norte') returning id")).rows[0].id;
+    const otra = (await db.query("insert into ubicaciones(nombre) values('Sur') returning id")).rows[0].id;
+    await db.query('insert into asignaciones values($1,$2)', [cuenta,unidad]);
+    await db.query("select set_config('request.jwt.claim.sub', $1, false)", [admin]);
+    const contenido = { tiposReportes: [{ clave: 'rondin', nombre: 'Rondin', activo: true, campos: [{nombre_campo:'persona',fuente_dato:'vigilante'}] }], catalogos: [] };
+    const pub = (await db.query('select * from publicar_configuracion($1,$2,0)', [unidad,JSON.stringify(contenido)])).rows[0].id;
+    // A report made before the new migration remains intact.
+    await db.query("insert into reportes(id,creado_por,ubicacion_id,configuracion_id,tipo_clave,tipo_nombre,mensaje_whatsapp,valores) values(gen_random_uuid(),$1,$2,$3,'rondin','Rondin','Anterior','{\"vigilante\":\"Nombre anterior\"}')", [cuenta,unidad,pub]);
+    const migration = await readFile('supabase/vigilantes_por_unidad.sql', 'utf8');
+    await db.exec(migration); await db.exec(migration);
+    const sesion = async id => {
+        await db.exec('reset role');
+        await db.query("select set_config('request.jwt.claim.sub', $1, false)", [id]);
+        await db.exec('set role authenticated');
+    };
+    await sesion(admin);
+    const ana = (await db.query("insert into vigilantes(ubicacion_id,nombre) values($1,'Ana') returning id", [unidad])).rows[0].id;
+    const pedro = (await db.query("insert into vigilantes(ubicacion_id,nombre) values($1,'Pedro') returning id", [unidad])).rows[0].id;
+    const ajeno = (await db.query("insert into vigilantes(ubicacion_id,nombre) values($1,'Otro') returning id", [otra])).rows[0].id;
+    await sesion(cuenta);
+    assert.equal((await db.query('select * from vigilantes')).rows.length,2);
+    await assert.rejects(db.query("insert into vigilantes(ubicacion_id,nombre) values($1,'Inventado')",[unidad]), /row-level security/);
+    assert.equal((await db.query("update vigilantes set nombre='Cambio' returning id")).rows.length,0);
+    const reportar = id => db.query("insert into reportes(id,creado_por,ubicacion_id,configuracion_id,vigilante_id,tipo_clave,tipo_nombre,mensaje_whatsapp,valores) values(gen_random_uuid(),$1,$2,$3,$4,'rondin','Rondin','Reporte','{\"vigilante\":\"Falso\",\"persona\":\"Falso\"}') returning *", [cuenta,unidad,pub,id]);
+    await assert.rejects(reportar(null), /vigilante activo/);
+    await assert.rejects(reportar(ajeno), /vigilante activo/);
+    const primero = (await reportar(ana)).rows[0];
+    const segundo = (await reportar(pedro)).rows[0];
+    assert.equal(primero.creado_por,segundo.creado_por);
+    assert.equal(primero.vigilante_nombre,'Ana');
+    assert.equal(segundo.valores.vigilante,'Pedro');
+    assert.equal(primero.valores.persona,'Ana');
+    await sesion(admin);
+    await db.query("update vigilantes set nombre='Ana nueva', activo=false where id=$1",[ana]);
+    await sesion(cuenta);
+    await assert.rejects(reportar(ana), /vigilante activo/);
+    assert.equal((await db.query('select * from vigilantes')).rows.length,1);
+    const historico = (await db.query('select vigilante_nombre from reportes where vigilante_id=$1',[ana])).rows;
+    assert.equal(historico[0].vigilante_nombre,'Ana');
+    assert.equal((await db.query('select valores from reportes where vigilante_id is null')).rows[0].valores.vigilante,'Nombre anterior');
+    await db.exec('reset role; set role anon');
+    await assert.rejects(db.query('select * from vigilantes'), /permission denied/);
+});

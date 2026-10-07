@@ -1,0 +1,3 @@
+[functions.limpiar-reportes]
+# La función valida el secreto privado LIMPIEZA_SECRET antes de acceder a datos.
+verify_jwt = false

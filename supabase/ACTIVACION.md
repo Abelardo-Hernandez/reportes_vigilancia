@@ -1,3 +1,20 @@
+## Corrección de la limpieza automática
+
+Si Cron falla con `Direct deletion from storage tables is not allowed`, siga
+[LIMPIEZA.md](LIMPIEZA.md). Hay que desplegar `limpiar-reportes`, configurar sus
+secretos, ejecutar `limpieza_reportes.sql` y después el `cron.sql` actualizado.
+La limpieza elimina reportes y fotografías con más de 15 días mediante la API
+de Storage. No requiere recompilar el APK.
+
+## Actualización: vigilantes por unidad
+
+1. Ejecutar `vigilantes_por_unidad.sql` después de `multiubicacion.sql`.
+2. Con la app actualizada, enlazar el correo de la unidad en la pestaña Correos de acceso.
+3. Seleccionar la unidad y registrar sus vigilantes. No se necesita correo para cada persona.
+4. Seleccionar el nombre al crear reportes y en cada relevo. Los vigilantes desactivados
+   dejan de estar disponibles; sus reportes y nombres históricos se conservan.
+5. Distribuir una nueva compilación Android; el APK anterior no incluye este flujo.
+
 # Activar administración por ubicación
 
 ## Cambios de la versión 2.2

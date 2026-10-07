@@ -1,6 +1,6 @@
 {
   "name": "reportes-vigilancia",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "App de vigilancia con administración central y formularios por ubicación en Supabase.",
   "scripts": {

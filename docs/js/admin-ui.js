@@ -96,18 +96,18 @@ function limitesFechasHistorico(desde, hasta) {
 }
 
 function consultaHistorico(filtros, desde, cantidad, contar = false) {
-    let consulta = clienteNube().from('reportes').select('id,creado_por,creado_en,tipo_nombre,tipo_clave,ubicacion_id,configuracion_id,mensaje_whatsapp,valores,formulario_snapshot,evidencia_ruta', contar ? { count: 'exact' } : {});
+    let consulta = clienteNube().from('reportes').select('id,creado_por,vigilante_id,vigilante_nombre,creado_en,tipo_nombre,tipo_clave,ubicacion_id,configuracion_id,mensaje_whatsapp,valores,formulario_snapshot,evidencia_ruta', contar ? { count: 'exact' } : {});
     const limites = limitesFechasHistorico(filtros.desde, filtros.hasta);
     if (limites.inicio) consulta = consulta.gte('creado_en', limites.inicio);
     if (limites.fin) consulta = consulta.lt('creado_en', limites.fin);
     if (filtros.unidad) consulta = consulta.eq('ubicacion_id', filtros.unidad);
-    if (filtros.vigilante) consulta = consulta.eq('creado_por', filtros.vigilante);
+    if (filtros.vigilante) consulta = consulta.eq(filtros.vigilante.startsWith('cuenta:') ? 'creado_por' : 'vigilante_id', filtros.vigilante.replace(/^cuenta:/, ''));
     if (filtros.tipo) consulta = consulta.ilike('tipo_nombre', `%${filtros.tipo.replace(/[\\%_]/g, '\\$&')}%`);
     return consulta.lte('creado_en', filtros.corte).order('creado_en', { ascending: false }).order('id', { ascending: false }).range(desde, desde + cantidad - 1);
 }
 
 function nombreAutorReporte(reporte, perfiles) {
-    return reporte.valores?.vigilante || reporte.valores?.nombre_guardia || perfiles.find(p => p.id === reporte.creado_por)?.nombre || perfiles.find(p => p.id === reporte.creado_por)?.correo || 'Cuenta anterior';
+    return reporte.vigilante_nombre || reporte.valores?.vigilante || reporte.valores?.nombre_guardia || perfiles.find(p => p.id === reporte.creado_por)?.nombre || perfiles.find(p => p.id === reporte.creado_por)?.correo || 'Cuenta anterior';
 }
 
 async function mostrarHistorico(opciones = {}) {
@@ -117,14 +117,15 @@ async function mostrarHistorico(opciones = {}) {
     appContent.className = 'app-content admin-dashboard';
     appContent.innerHTML = '<p role="status">Cargando filtros…</p>';
     try {
-        const [unidades, perfiles] = await Promise.all([
+        const [unidades, perfiles, vigilantes] = await Promise.all([
             resultadoNube(clienteNube().from('ubicaciones').select('*').order('nombre')),
-            resultadoNube(clienteNube().from('perfiles').select('id,nombre,correo,rol').order('nombre'))
+            resultadoNube(clienteNube().from('perfiles').select('id,nombre,correo,rol').order('nombre')),
+            resultadoNube(clienteNube().from('vigilantes').select('*').order('nombre'))
         ]);
         if (vistaActual !== 'adminHistorial' || !sesionAdminActiva()) return;
         appContent.innerHTML = `<form id="filtrosHistorico" class="workspace-card"><span class="eyebrow">BUSCAR REPORTES</span><div class="filter-grid"><label>Desde<input type="date" name="desde"></label><label>Hasta<input type="date" name="hasta"></label>
           <label>Unidad<select name="unidad"><option value="">Todas las unidades</option>${unidades.map(u => `<option value="${u.id}">${escaparNube(u.nombre)}${u.activa ? '' : ' (inactiva)'}</option>`).join('')}</select></label>
-          <label>Vigilante<select name="vigilante"><option value="">Todas las cuentas</option>${perfiles.map(p => `<option value="${p.id}">${escaparNube(p.nombre || p.correo || 'Cuenta anterior')}</option>`).join('')}</select></label></div>
+          <label>Vigilante<select name="vigilante"><option value="">Todos los vigilantes</option>${vigilantes.map(v => `<option value="${v.id}">${escaparNube(v.nombre)} · ${escaparNube(unidades.find(u => u.id === v.ubicacion_id)?.nombre)}${v.activo ? '' : ' (inactivo)'}</option>`).join('')}<optgroup label="Por cuenta (incluye reportes anteriores)">${perfiles.map(p => `<option value="cuenta:${p.id}">${escaparNube(p.nombre || p.correo || 'Cuenta anterior')}</option>`).join('')}</optgroup></select></label></div>
           <label>Tipo de reporte<input name="tipo" maxlength="120" placeholder="Ej. Rondín, entrada, novedad"></label><button class="btn-main-small">Buscar reportes</button><button type="reset" class="text-button">Limpiar filtros</button></form>
           <div class="history-toolbar"><strong id="resumenHistorico" role="status"></strong><button class="btn-secondary-small" id="excelHistorico" disabled>Descargar Excel</button></div>
           <p id="estadoHistorico" role="status"></p><div id="listaHistorico" class="history-list"></div>
@@ -217,36 +218,82 @@ async function obtenerTodosHistorico(filtros, progreso = () => {}) {
     return reportes;
 }
 
+function fechaExcelHistorico(valor) {
+    if (!valor) return '';
+    const fecha = new Date(valor);
+    if (Number.isNaN(fecha.getTime())) return '';
+    const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(fecha).map(p => [p.type, p.value]));
+    return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
+}
+
 async function crearExcelHistorico(reportes, unidades, perfiles, filtros) {
     const libro = new ExcelJS.Workbook();
     libro.creator = 'PT Reportes';
-    const resumen = libro.addWorksheet('Reportes');
-    resumen.addRow(['ID', 'Fecha de recepción (UTC)', 'Vigilante', 'Unidad', 'Tipo', 'Configuración', 'Foto (ruta privada)']);
-    const respuestas = libro.addWorksheet('Respuestas'); respuestas.addRow(['ID reporte', 'Campo', 'Etiqueta', 'Parte', 'Valor']);
-    const mensajes = libro.addWorksheet('Mensajes'); mensajes.addRow(['ID reporte', 'Parte', 'Mensaje']);
-    const trozos = valor => String(valor ?? '').match(/[\s\S]{1,30000}/g) || [''];
-    for (const r of reportes) {
-        resumen.addRow([r.id, r.creado_en, nombreAutorReporte(r, perfiles), unidades.find(u => u.id === r.ubicacion_id)?.nombre || 'Sin unidad', r.tipo_nombre, r.configuracion_id || '', r.evidencia_ruta || '']);
-        for (const [clave, valor] of Object.entries(r.valores || {})) {
-            const etiqueta = r.formulario_snapshot?.campos?.find(c => c.nombre_campo === clave)?.etiqueta || clave;
-            trozos(typeof valor === 'object' ? JSON.stringify(valor) : valor).forEach((parte, index) => respuestas.addRow([r.id, clave, etiqueta, index + 1, parte]));
-        }
-        trozos(r.mensaje_whatsapp).forEach((parte, index) => mensajes.addRow([r.id, index + 1, parte]));
+    const grupos = new Map();
+    for (const reporte of reportes) {
+        const clave = reporte.tipo_clave || reporte.tipo_nombre || 'Reportes';
+        if (!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push(reporte);
     }
-    const info = libro.addWorksheet('Consulta');
-    info.addRow(['Filtro', 'Valor']);
-    info.addRow(['Generado (UTC)', new Date().toISOString()]);
-    info.addRow(['Desde (fecha local)', filtros.desde || 'Sin límite']); info.addRow(['Hasta (fecha local)', filtros.hasta || 'Sin límite']);
-    info.addRow(['Unidad', unidades.find(u => u.id === filtros.unidad)?.nombre || 'Todas']);
-    info.addRow(['Vigilante', perfiles.find(p => p.id === filtros.vigilante)?.nombre || filtros.vigilante || 'Todos']);
-    info.addRow(['Tipo contiene', filtros.tipo || 'Todos']); info.addRow(['Corte (UTC)', filtros.corte]);
-    info.addRow(['Total exportado', reportes.length]);
-    info.addRow(['Fotografías', 'Se consultan en la app. Las rutas de este archivo no son enlaces públicos.']);
-    info.addRow(['Contenido largo', 'Las respuestas y mensajes de más de 30000 caracteres se dividen en partes.']);
+    const nombres = new Set();
+    const nombreHoja = nombre => {
+        const base = String(nombre || 'Reportes').replace(/[\\/?*\[\]:\x00-\x1f]/g, ' ').replace(/^'+|'+$/g, '').trim() || 'Reportes';
+        let candidato = base.slice(0, 31), numero = 2;
+        while (nombres.has(candidato.toLowerCase()) || candidato.toLowerCase() === 'history') {
+            const sufijo = ` (${numero++})`;
+            candidato = base.slice(0, 31 - sufijo.length) + sufijo;
+        }
+        nombres.add(candidato.toLowerCase());
+        return candidato;
+    };
+    const internos = new Set(['vigilante_id', 'registrado_dispositivo']);
+    const identidad = new Set(['vigilante', 'guardia', 'nombre_guardia', 'nombre_vigilante', 'unidad', 'ubicacion']);
+    const texto = valor => valor == null ? '' : typeof valor === 'object' ? JSON.stringify(valor) : String(valor);
+    for (const filas of grupos.values()) {
+        const hoja = libro.addWorksheet(nombreHoja(filas[0].tipo_nombre || filas[0].tipo_clave));
+        const campos = new Map();
+        for (const r of filas) {
+            const definidos = r.formulario_snapshot?.campos || [];
+            const candidatos = [
+                ...definidos,
+                ...Object.keys(r.valores || {}).filter(clave => !definidos.some(c => c.nombre_campo === clave)).map(clave => ({ nombre_campo: clave, etiqueta: clave }))
+            ];
+            for (const campo of candidatos) {
+                const clave = campo.nombre_campo;
+                if (!clave || internos.has(clave) || identidad.has(clave)) continue;
+                // Fecha y hora del contexto se reflejan en la fecha de recepcion;
+                // conservarlas si pertenecen explicitamente al formulario.
+                if (['fecha', 'hora'].includes(clave) && !definidos.some(c => c.nombre_campo === clave)) continue;
+                if (!campos.has(clave)) campos.set(clave, { clave, etiqueta: campo.etiqueta || clave, partes: 1 });
+                const columna = campos.get(clave);
+                columna.partes = Math.max(columna.partes, Math.ceil(texto(r.valores?.[clave]).length / 30000));
+            }
+        }
+        const columnas = [...campos.values()].flatMap(campo => Array.from({ length: campo.partes }, (_, parte) => ({
+            ...campo, parte, titulo: campo.etiqueta + (parte ? ` (${parte + 1})` : '')
+        })));
+        hoja.addRow(['Fecha de recepci\u00f3n (CDMX)', 'Vigilante', 'Unidad', ...columnas.map(c => c.titulo)]);
+        for (const r of filas) {
+            hoja.addRow([
+                fechaExcelHistorico(r.creado_en), nombreAutorReporte(r, perfiles),
+                r.valores?.unidad || r.valores?.ubicacion || unidades.find(u => u.id === r.ubicacion_id)?.nombre || 'Sin unidad',
+                ...columnas.map(c => texto(r.valores?.[c.clave]).slice(c.parte * 30000, (c.parte + 1) * 30000))
+            ]);
+        }
+    }
+    if (!grupos.size) libro.addWorksheet('Reportes').addRow(['Sin reportes para exportar']);
     libro.eachSheet(hoja => {
         hoja.views = [{ state: 'frozen', ySplit: 1 }];
         hoja.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         hoja.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16634B' } };
+        hoja.getRow(1).alignment = { vertical: 'middle', wrapText: true };
+        hoja.getRow(1).height = 32;
+        hoja.eachRow((fila, numero) => {
+            if (numero > 1) fila.alignment = { vertical: 'top', wrapText: true };
+        });
         for (let columna = 1; columna <= hoja.columnCount; columna++) hoja.getColumn(columna).width = 28;
         hoja.autoFilter = { from: { row: 1, column: 1 }, to: { row: hoja.rowCount, column: hoja.columnCount } };
     });

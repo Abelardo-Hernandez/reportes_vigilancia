@@ -8,14 +8,14 @@ function fuenteAutomatica(campo) {
 }
 
 function datosAutomaticosReporte(instante = new Date()) {
-    const vigilante = nube.perfil?.nombre?.trim() || nube.usuario?.email || '';
+    const vigilante = nube.vigilante?.nombre?.trim() || '';
     const unidad = nube.ubicacion?.nombre || '';
     return {
         hora: instante.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase(),
         fecha: instante.toLocaleDateString('es-MX'),
         vigilante, guardia: vigilante, nombre_guardia: vigilante, nombre_vigilante: vigilante,
         unidad, ubicacion: unidad,
-        vigilante_id: nube.usuario?.id || '', registrado_dispositivo: instante.toISOString()
+        vigilante_id: nube.vigilante?.id || '', registrado_dispositivo: instante.toISOString()
     };
 }
 

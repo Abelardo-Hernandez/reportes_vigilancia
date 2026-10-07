@@ -980,3 +980,91 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .evidencia-form-group { display: flex; flex-direction: column; gap: 10px; }
 #fotoVistaPrevia { width: 100%; max-height: 260px; object-fit: contain; border-radius: 12px; }
 input[readonly] { background: #edf5ef; color: #244532; }
+
+/* Lenguaje visual compartido con el panel de administración. */
+:root { --ui-ink: #193b35; --ui-green: #16634b; --ui-border: #d8e6df; }
+body { color: var(--ui-ink); }
+.app-content { overflow-y: auto; padding: 3px 3px 14px; }
+.app-header { background: #16634b; border-radius: 20px; box-shadow: 0 3px 9px #17372e0a; }
+.app-header h1 { letter-spacing: 0; }
+.loading-box, .info-card, .onboarding-card, .login-card, .error-box,
+.empty-state, .form-card, .preview-card, .admin-card, .admin-field-card, .menu-card {
+    border: 1px solid var(--ui-border);
+    background: #fff;
+    box-shadow: 0 3px 9px #17372e05;
+    border-radius: 20px;
+}
+.menu-card { border-left-width: 4px; padding: 16px; gap: 14px; }
+.menu-card span, .admin-card span { font-size: 17px; font-weight: 700; letter-spacing: 0; }
+.emoji { font-size: 28px; width: 42px; flex-shrink: 0; }
+.form-group { gap: 7px; }
+.form-group label, .login-card label, .cloud-card label, .checkbox-field {
+    font-size: 13px; font-weight: 700; color: var(--ui-ink);
+}
+.app-content input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+.app-content select, .app-content textarea {
+    width: 100%; min-width: 0; min-height: 46px;
+    padding: 10px 12px; border: 1px solid #c9d9d0; border-radius: 11px;
+    font: inherit; font-size: 16px; color: #233e35; background: #fbfdfb;
+}
+.app-content input[readonly] { background: #edf5ef; color: #244532; }
+.app-content input[type=checkbox], .app-content input[type=radio] { accent-color: var(--ui-green); }
+.app-content input[type=file] { font-size: 13px; }
+.app-content input::file-selector-button { border: 0; border-radius: 7px; padding: 8px; margin-right: 8px; background: #e7f3ec; color: var(--ui-green); }
+.app-content :is(input, select, textarea, button, a, summary):focus-visible {
+    outline: 2px solid #71b398; outline-offset: 2px;
+}
+.app-content .catalogo-error-activo :is(select, input) { border-color: #dc2626; }
+.btn-main, .btn-main-small, .btn-menu-reporte {
+    background: var(--ui-green); animation: none; box-shadow: none;
+    min-height: 46px; border-radius: 12px; font-size: 16px; font-weight: 700;
+}
+.btn-secondary-small, .btn-volver, .btn-admin, .admin-field-actions button {
+    background: #e8f1eb; color: #315e4c; box-shadow: none;
+    border-radius: 12px; min-height: 44px; font-weight: 700;
+}
+.btn-secondary-small { font-size: 13px; padding: 12px; }
+.btn-admin { border: 1px solid var(--ui-border); }
+.time-selector { box-shadow: none; background: #f5f9f6; border-radius: 14px; }
+.time-picker-trigger { border-radius: 11px; box-shadow: none; font-weight: 700; }
+.access-content { display: flex; flex-direction: column; gap: 16px; }
+.access-content > form { flex-shrink: 0; }
+.login-card h2, .cloud-card h2 { margin: 0; font-size: 23px; letter-spacing: -.5px; }
+.login-card p, .cloud-card p { margin: 0; color: #60746c; font-size: 14px; line-height: 1.55; }
+#mensajeNube:empty { display: none; }
+#mensajeNube:not(:empty) { padding: 12px; border-radius: 11px; background: #f5f8f6; }
+.home-actions { justify-content: flex-start; gap: 16px; padding-bottom: 28px; }
+.home-actions > * { flex-shrink: 0; }
+.home-actions .btn-volver { margin-top: 0; }
+.home-brand img { max-height: 88px; filter: none; }
+.home-actions .app-version { position: static; align-self: flex-end; margin-top: auto; }
+.preview-content { overflow: hidden; }
+.unit-detail:empty { display: none; }
+.unit-actions { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--ui-border); padding-top: 16px; }
+.unit-actions strong { overflow-wrap: anywhere; }
+.unit-actions .status-pill { align-self: flex-start; }
+.photo-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.photo-capture { position: relative; }
+.app-content .photo-capture-input {
+    position: absolute; width: 1px !important; height: 1px; min-height: 0 !important;
+    padding: 0 !important; border: 0 !important; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+}
+.photo-capture-button {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    width: 100%; min-height: 68px; padding: 16px; border-radius: 14px;
+    background: #16634b; color: #fff; border: 1px solid #12563f;
+    box-shadow: 0 4px 10px #16634b24; cursor: pointer;
+    font-size: 17px; font-weight: 700;
+}
+.photo-capture-button svg { width: 28px; height: 28px; flex-shrink: 0; }
+.photo-capture-input:focus-visible + .photo-capture-button { outline: 3px solid #71b398; outline-offset: 3px; }
+.photo-capture-input:not(:disabled) + .photo-capture-button:hover { background: #12563f; }
+.photo-capture-input:not(:disabled) + .photo-capture-button:active { transform: scale(.98); }
+.photo-capture-input:disabled + .photo-capture-button { opacity: .55; cursor: not-allowed; box-shadow: none; }
+#evidenciaAyuda { color: #60746c; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 350px) {
+    .form-card, .preview-card, .login-card { padding: 15px; }
+    .admin-toolbar { grid-template-columns: minmax(0, 1fr); }
+    .admin-field-card { flex-wrap: wrap; }
+}

@@ -1,7 +1,7 @@
 let STORAGE_CONFIG_KEY = "rv_configuracion";
 const STORAGE_HISTORIAL_KEY = "rv_historial";
 const STORAGE_ONBOARDING_KEY = "rv_presentacion_aceptada";
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.3.0";
 
 const appContent = document.getElementById("appContent");
 const appHeader = document.querySelector(".app-header");
@@ -499,7 +499,7 @@ function mostrarInicio(opciones = {}) {
 }
 
 function mostrarMenuReportes(opciones = {}) {
-    if (!nube.usuario || !nube.ubicacion || !nube.publicacion || !STORAGE_CONFIG_KEY.startsWith("rv_publicado_")) return mostrarInicio();
+    if (!nube.usuario || !nube.ubicacion || !nube.publicacion || !nube.vigilante || nube.vigilante.ubicacion_id !== nube.ubicacion.id || !STORAGE_CONFIG_KEY.startsWith("rv_publicado_")) return mostrarInicio();
     registrarNavegacion("menuReportes", {}, opciones);
     const configuracion = obtenerConfiguracion();
     const tipos = configuracion.tiposReportes
@@ -557,7 +557,7 @@ function limpiarReporteActual() {
 }
 
 function mostrarReporte(clave, opciones = {}) {
-    if (!nube.usuario || !nube.ubicacion || !nube.publicacion || !STORAGE_CONFIG_KEY.startsWith("rv_publicado_")) return mostrarInicio();
+    if (!nube.usuario || !nube.ubicacion || !nube.publicacion || !nube.vigilante || nube.vigilante.ubicacion_id !== nube.ubicacion.id || !STORAGE_CONFIG_KEY.startsWith("rv_publicado_")) return mostrarInicio();
     registrarNavegacion("reporte", { clave }, opciones);
     const configuracion = obtenerConfiguracion();
     const tipo = configuracion.tiposReportes.find(item => item.clave === clave && item.activo);
@@ -1051,8 +1051,14 @@ function renderizarVistaPrevia(clave, mensajeTexto) {
             <p class="preview-message">${escaparNube(mensajeTexto)}</p>
         </div>
         <div class="form-card evidencia-form-group">
-            <label for="evidenciaReporte">Tomar una foto <small>Opcional</small></label>
-            <input id="evidenciaReporte" type="file" accept="image/*" capture="environment" onchange="seleccionarEvidencia(this)" ${vistaPreviaActual?.guardado ? 'disabled' : ''}>
+            <div class="photo-heading"><strong>Evidencia fotográfica</strong><span class="status-pill">Opcional</span></div>
+            <div class="photo-capture">
+                <input class="photo-capture-input" id="evidenciaReporte" type="file" accept="image/*" capture="environment" aria-describedby="evidenciaAyuda" onchange="seleccionarEvidencia(this)" ${vistaPreviaActual?.guardado ? 'disabled' : ''}>
+                <label class="photo-capture-button" for="evidenciaReporte">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l1.5-2h5L16 5h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span id="fotoAccionTexto">Tomar foto</span>
+                </label>
+            </div>
             <small id="evidenciaAyuda">La foto se guardará con el reporte y se adjuntará al compartir.</small>
             <img id="fotoVistaPrevia" alt="Foto adjunta al reporte" hidden>
             <button class="btn-secondary-small" id="quitarFoto" onclick="quitarEvidencia()" hidden>Quitar foto</button>
@@ -1080,6 +1086,8 @@ function actualizarVistaFoto() {
     const img = document.getElementById('fotoVistaPrevia');
     const quitar = document.getElementById('quitarFoto');
     if (!img) return;
+    const accion = document.getElementById('fotoAccionTexto');
+    if (accion) accion.textContent = vistaPreviaActual?.guardado ? 'Reporte guardado' : evidenciaActual ? 'Cambiar foto' : 'Tomar foto';
     img.hidden = !evidenciaActual;
     quitar.hidden = !evidenciaActual || Boolean(vistaPreviaActual?.guardado);
     if (!evidenciaActual) { img.removeAttribute('src'); return; }
@@ -1339,6 +1347,7 @@ async function guardarReporteEnSupabase(reporte, evidencia) {
     const { error: errorReporte } = await window.supabaseClient.from("reportes").insert({
         id: idReporte,
         creado_por: sesion.user.id,
+        vigilante_id: reporte.valores.vigilante_id,
         ubicacion_id: reporte.ubicacion_id,
         configuracion_id: reporte.configuracion_id,
         tipo_clave: reporte.tipo_clave,
@@ -1742,7 +1751,7 @@ function renderEditorCampoAdmin(tipo) {
                 <label>Completar con</label>
                 <select name="fuente_dato">
                     <option value="" ${!campo.fuente_dato ? 'selected' : ''}>Detectar según el campo</option>
-                    <option value="vigilante" ${campo.fuente_dato === 'vigilante' ? 'selected' : ''}>Nombre del vigilante conectado</option>
+                    <option value="vigilante" ${campo.fuente_dato === 'vigilante' ? 'selected' : ''}>Nombre del vigilante seleccionado</option>
                     <option value="unidad" ${campo.fuente_dato === 'unidad' ? 'selected' : ''}>Unidad de trabajo autorizada</option>
                     <option value="hora" ${campo.fuente_dato === 'hora' ? 'selected' : ''}>Hora del sistema</option>
                     <option value="manual" ${campo.fuente_dato === 'manual' ? 'selected' : ''}>Captura manual (otros datos)</option>
